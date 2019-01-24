@@ -1,5 +1,5 @@
 from __future__ import print_function
-import curses
+import logging
 import re
 from .curses_wrapper import curses_wrapper
 from .screen_utils import *
@@ -35,6 +35,7 @@ class Radio(object):
         self._stations = None
         self.load_stations()
 
+        self._logger = logging.getLogger(__name__)
         self._job = self._sched.add_job(self.io_handler, 'interval', seconds=0.1)
 
     def close(self):
@@ -76,6 +77,7 @@ class Radio(object):
 # Method called by the scheduler, proceeds based on current state
 #####################################################################################################
     def io_handler(self):
+        self._logger.debug("Executing scheduled task")
         # Pause job (stops lots of warnings)
         self._job.pause()
 
@@ -257,48 +259,82 @@ class Radio(object):
                 self._state = Radio.RADIO_STATE_LIST_STATIONS
             elif (buttons == commands.CMD_LEFT) | (buttons == commands.CMD_RIGHT):
                 self._alt_display = self._alt_display ^ True
-            elif (buttons & commands.CMD_DSPSEL_MASK) == commands.CMD_DSPSEL_MASK:
-                if buttons == commands.CMD_DSPSEL1:
-                    self._presets_buttondown_count[0] += 1
-                elif buttons == commands.CMD_DSPSEL2:
-                    self._presets_buttondown_count[1] += 1
-                elif buttons == commands.CMD_DSPSEL3:
-                    self._presets_buttondown_count[2] += 1
-                elif buttons == commands.CMD_DSPSEL4:
-                    self._presets_buttondown_count[3] += 1
-            elif (buttons & commands.CMD_DSPSEL_MASK) == 0:
-                for i in range(0,4):
-                    # This should work out to be about 5 secs
-                    if self._presets_buttondown_count[i] > 15:
-                        if playback_state == "play":
-                            for station in self._stations[self._page]:
-                                if station.is_selected():
-                                    self._presets[i + 1] = station
-                        else:
-                            self._presets[i + 1] = None
-                    # There's some 'bounce' so ignore any fast transitions, otherwise you start playing instead of clearing
-                    elif self._presets_buttondown_count[i] > 1:
-                        tmp_preset = self._presets[i + 1]
-                        if not tmp_preset is None:
-                            self.play_station(tmp_preset)
-                    self._presets_buttondown_count[i] = 0
             # Support selecting radio preset from IR remote, using numeric keys
             elif buttons == commands.CMD_1:
+                #self._logger.debug("IR remoted selected radio preset 1.")
                 tmp_preset = self._presets[1]
                 if not tmp_preset is None:
                     self.play_station(tmp_preset)
             elif buttons == commands.CMD_2:
+                #self._logger.debug("IR remoted selected radio preset 2.")
                 tmp_preset = self._presets[2]
                 if not tmp_preset is None:
                     self.play_station(tmp_preset)
             elif buttons == commands.CMD_3:
+                #self._logger.debug("IR remoted selected radio preset 3.")
                 tmp_preset = self._presets[3]
                 if not tmp_preset is None:
                     self.play_station(tmp_preset)
             elif buttons == commands.CMD_4:
+                #self._logger.debug("IR remoted selected radio preset 4.")
                 tmp_preset = self._presets[4]
                 if not tmp_preset is None:
                     self.play_station(tmp_preset)
+            # Handle preset selection, and saving
+            elif (buttons & commands.CMD_DSPSEL_MASK) == commands.CMD_DSPSEL_MASK:
+                if buttons == commands.CMD_DSPSEL1:
+                    # If the button has been depressed for more than 5 secs
+                    if self._presets_buttondown_count[0] > 15:
+                        if playback_state == "play":
+                            for station in self._stations[self._page]:
+                                if station.is_selected():
+                                    self._presets[1] = station
+                        else:
+                            self._presets[1] = None
+                    else:
+                        self._presets_buttondown_count[0] += 1
+                elif buttons == commands.CMD_DSPSEL2:
+                    # If the button has been depressed for more than 5 secs
+                    if self._presets_buttondown_count[1] > 15:
+                        if playback_state == "play":
+                            for station in self._stations[self._page]:
+                                if station.is_selected():
+                                    self._presets[2] = station
+                        else:
+                            self._presets[2] = None
+                    else:
+                        self._presets_buttondown_count[1] += 1
+                elif buttons == commands.CMD_DSPSEL3:
+                    # If the button has been depressed for more than 5 secs
+                    if self._presets_buttondown_count[2] > 15:
+                        if playback_state == "play":
+                            for station in self._stations[self._page]:
+                                if station.is_selected():
+                                    self._presets[3] = station
+                        else:
+                            self._presets[3] = None
+                    else:
+                        self._presets_buttondown_count[2] += 1
+                elif buttons == commands.CMD_DSPSEL4:
+                    # If the button has been depressed for more than 5 secs
+                    if self._presets_buttondown_count[3] > 15:
+                        if playback_state == "play":
+                            for station in self._stations[self._page]:
+                                if station.is_selected():
+                                    self._presets[4] = station
+                        else:
+                            self._presets[4] = None
+                    else:
+                        self._presets_buttondown_count[3] += 1
+            # This is a catch all, so has to be last
+            elif (buttons & commands.CMD_DSPSEL_MASK) == 0:
+                for i in range(0,4):
+                    # There's some 'bounce' so ignore any fast transitions, otherwise you start playing instead of clearing
+                    if self._presets_buttondown_count[i] > 1:
+                        tmp_preset = self._presets[i + 1]
+                        if not tmp_preset is None:
+                            self.play_station(tmp_preset)
+                    self._presets_buttondown_count[i] = 0
 
         # Draw screen
         self._station_ticker.setText(song_station)
@@ -337,12 +373,13 @@ class Radio(object):
 #####################################################################################################
 # MPD functions
     def play_station(self, station):
-        self._current_station = station.get_url()
+        if station.get_url() != self._current_station:
+            self._current_station = station.get_url()
 
-        self.stop_playback()
-        self._parent.get_MPDclient().clear()
-        self._parent.get_MPDclient().add(self._current_station)
-        self.start_playback()
+            self.stop_playback()
+            self._parent.get_MPDclient().clear()
+            self._parent.get_MPDclient().add(self._current_station)
+            self.start_playback()
 
     def start_playback(self):
         self._parent.get_MPDclient().play()

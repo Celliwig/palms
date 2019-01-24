@@ -6,6 +6,7 @@
 #############################################################################
 
 import curses
+import logging
 from . import commands
 from .dev_panel import *
 
@@ -13,6 +14,9 @@ class curses_wrapper(object):
     SCREEN_TYPE_NONE = 0
     SCREEN_TYPE_NCURSES = 1
     SCREEN_TYPE_FPDEVICE = 2
+
+    KEY_REPEAT_DELAY = 4			# Repeat at about 2.5 Hz
+    KEY_REPEAT_DELAY_START = 10			# Delay for about 1 second
 
     def __init__(self, screen_type):
         self._command_current = None
@@ -24,7 +28,10 @@ class curses_wrapper(object):
         self._screen = None
         self._screen_type = screen_type
 
+        self._logger = logging.getLogger(__name__)
+
         if self._screen_type == self.SCREEN_TYPE_NCURSES:
+            self._logger.debug('Creating ncurses screen.')
             self._screen = curses.initscr()
             curses.cbreak()
             curses.noecho()
@@ -34,10 +41,13 @@ class curses_wrapper(object):
             self._screen.nodelay(True)
 
         if self._screen_type == self.SCREEN_TYPE_FPDEVICE:
+            self._logger.debug('Connecting to /dev backed FP screen.')
             self._screen = dev_panel()
 
     # Destroy screen
     def close(self):
+        self._logger.debug('Closing screen.')
+
         if self._screen_type == self.SCREEN_TYPE_NCURSES:
             self._screen.keypad(False)
             curses.curs_set(True)
@@ -101,30 +111,34 @@ class curses_wrapper(object):
 
         self._command_current = rtn
 
+        self._logger.debug("Read command value: " + str(self._command_current))
+
         # Set the flag to indicate if the command has changed sinece it was last read
         if self._command_current == self._command_previous:
             self._command_changed = False
         else:
             self._command_changed = True
-            self._command_repeat_delay = 10					# Delay for about a second
-            self._command_repeat = 3						# Repeat at about 3 Hz
+            self._command_repeat_delay = curses_wrapper.KEY_REPEAT_DELAY_START
+            self._command_repeat = curses_wrapper.KEY_REPEAT_DELAY
 
         # Some keys need to be repeated however
         if self._command_changed == False:
             repeat_key = False
+            repeat_key_no_delay = False
             if self._command_current == commands.CMD_UP: repeat_key = True
             if self._command_current == commands.CMD_DOWN: repeat_key = True
-            if self._command_current == commands.CMD_DSPSEL1: repeat_key = True
-            if self._command_current == commands.CMD_DSPSEL2: repeat_key = True
-            if self._command_current == commands.CMD_DSPSEL3: repeat_key = True
-            if self._command_current == commands.CMD_DSPSEL4: repeat_key = True
+            if self._command_current == commands.CMD_DSPSEL1: repeat_key_no_delay = True
+            if self._command_current == commands.CMD_DSPSEL2: repeat_key_no_delay = True
+            if self._command_current == commands.CMD_DSPSEL3: repeat_key_no_delay = True
+            if self._command_current == commands.CMD_DSPSEL4: repeat_key_no_delay = True
 
-            if repeat_key:
-                if self._command_repeat_delay > 0:
+            if repeat_key or repeat_key_no_delay:
+                if (self._command_repeat_delay > 0) and (not repeat_key_no_delay):
                     self._command_repeat_delay -= 1
                 else:
+                    self._logger.debug("Repeating previous command value: " + str(self._command_current))
                     self._command_changed = True
-                    self._command_repeat = 3                                    # Repeat at about 3 Hz
+                    self._command_repeat = curses_wrapper.KEY_REPEAT_DELAY
 
         return self._command_current
 

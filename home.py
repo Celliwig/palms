@@ -1,4 +1,5 @@
 from __future__ import print_function
+import logging
 from .radio import Radio
 from .dlna import DLNA
 from .usb import USB
@@ -23,6 +24,7 @@ class Home(object):
         # Select the first widget
         self._controls[0].set_selected(True)
 
+        self._logger = logging.getLogger(__name__)
         self._job = self._sched.add_job(self.io_handler, 'interval', seconds=0.1)
 
     def close(self):
@@ -68,6 +70,7 @@ class Home(object):
         self._poweroff = pwroff
 
     def io_handler(self):
+        self._logger.debug("Executing scheduled task.")
         # Pause job (stops lots of warnings)
         self._job.pause()
 
