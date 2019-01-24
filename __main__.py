@@ -112,8 +112,8 @@ def main():
     # Setup connection tp MPD Server
     logger.debug("Preparing to connect to MPD daemon using socket: " + MPD_default_socket_path)
     mpd_client = MPDClient()
-    mpd_client.timeout = 30
-    mpd_client.idletimeout = None
+    mpd_client.timeout = 240
+    mpd_client.idletimeout = 240
     mpd_client.connect(MPD_default_socket_path,None)
     logger.info("Connected to MPD daemon.")
 

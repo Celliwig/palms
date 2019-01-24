@@ -118,9 +118,9 @@ class Home(object):
 #                if control.is_selected():
 #                    attributes = curses.A_REVERSE
                 if control.is_selected():
-                    tmp_txt  = '    >>> ' + control.control_name()
+                    tmp_txt  = '   >>> ' + control.control_name().ljust(5) + ' <<<    '
                 else:
-                    tmp_txt  = '        ' + control.control_name()
+                    tmp_txt  = '       ' + control.control_name().ljust(5) + '        '
                 self._curses.get_screen().addstr(line, 0, tmp_txt)
                 line += 1
 
