@@ -1,7 +1,7 @@
 from __future__ import print_function
 import curses
 import re
-from .curses_panel import curses_panel
+from .curses_wrapper import curses_wrapper
 from .station import Station
 from .ticker import Ticker
 from . import commands
@@ -69,7 +69,8 @@ class Radio(object):
 
         # Get button presses
         if self.is_active():
-            buttons = curses_panel.getbuttons(self._screen)
+            self._parent.get_MPDclient().ping()
+            buttons = curses_wrapper.getbuttons(self._screen)
 
             # Handle over arching button events seperately
             if buttons == commands.CMD_POWER:
@@ -170,7 +171,7 @@ class Radio(object):
                 if station.is_selected():
                     self.play_station(station)
                     self._state = 3
-        elif buttons == commands.CMD_BACK:
+        elif buttons == commands.CMD_MODE:
             self.set_active(False)
             self._parent.set_active(True)
 
@@ -191,6 +192,8 @@ class Radio(object):
             station.pulse()
             screen_line_num += 1
             station_count += 1
+
+        self._screen.refresh()
 
     def show_stream_playback(self, buttons):
         screen_size = self._screen.getmaxyx()
@@ -232,7 +235,7 @@ class Radio(object):
             self.pause_playback()
         elif buttons == commands.CMD_STOP:
             self.stop_playback()
-        elif buttons == commands.CMD_BACK:
+        elif buttons == commands.CMD_MODE:
             self._state = 0
         elif (buttons == commands.CMD_LEFT) | (buttons == commands.CMD_RIGHT):
             self._alt_display = self._alt_display ^ True
@@ -292,6 +295,8 @@ class Radio(object):
 
         self._station_ticker.pulse()
         self._song_ticker.pulse()
+
+        self._screen.refresh()
 
 #####################################################################################################
 # MPD functions
@@ -373,7 +378,7 @@ class Radio(object):
             tmp_station = Station(tmp_station[0], tmp_station[1], tmp_selected)
             tmp_selected = False
             stations.append(tmp_station)
-        self._stations = curses_panel.convert_2_pages(stations,8)
+        self._stations = curses_wrapper.convert_2_pages(stations,8)
 
     def create_tables(self):
         sql_csr = self._parent.get_sqlcon().cursor()
@@ -399,6 +404,7 @@ class Radio(object):
             self._parent.get_sqlcon().commit()
 
             # Add some stations
+            # SomaFM
             self.add_station("Jolly Ol' Soul", "http://ice.somafm.com/jollysoul")
             self.add_station("Xmas in Frisko", "http://ice.somafm.com/xmasinfrisko")
             self.add_station("Christmas Rocks!", "http://ice.somafm.com/xmasrocks")
@@ -437,4 +443,5 @@ class Radio(object):
             self.add_station("DEF CON Radio", "http://ice.somafm.com/defcon")
             self.add_station("Earwaves", "http://sfstream1.somafm.com:5100")
             self.add_station("The Silent Channel", "http://ice.somafm.com/silent")
-
+            # FolkAlley
+            self.add_station("Folk Alley", "https://stream.wksu.org/wksu2.mp3.128")

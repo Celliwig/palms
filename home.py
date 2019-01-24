@@ -1,7 +1,7 @@
 from __future__ import print_function
 import curses
 from . import commands
-from .curses_panel import curses_panel
+from .curses_wrapper import curses_wrapper
 from .radio import Radio
 from .dlna import DLNA
 from .usb import USB
@@ -68,7 +68,8 @@ class Home(object):
     def io_handler(self):
         # Get button presses
         if self.is_active():
-            buttons = curses_panel.getbuttons(self._screen)
+            self._mpd_client.ping()
+            buttons = curses_wrapper.getbuttons(self._screen)
 
             # Action button events
             if buttons == commands.CMD_POWER:
@@ -112,3 +113,5 @@ class Home(object):
                     self._screen.addch(line,0,' ')
                 self._screen.addstr(control.control_name())
                 line += 1
+
+            self._screen.refresh()

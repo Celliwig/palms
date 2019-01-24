@@ -1,16 +1,16 @@
 #!/usr/bin/env python
+
 from __future__ import print_function
 from mpd import MPDClient
 import sys
 from time import sleep
 import argparse
 from apscheduler.schedulers.background import BackgroundScheduler
-import curses
 import sqlite3
+import os, pwd
 
 from . import *
 from .home import Home
-#from .i2c_curses import curses_i2c
 
 def usage():
     print(USAGE % sys.argv[0])
@@ -20,14 +20,62 @@ def main():
     parser = argparse.ArgumentParser()
     ui_interface = parser.add_mutually_exclusive_group(required=True)
     ui_interface.add_argument("-c","--console",action="store_true",help="The UI is console based")
-    ui_interface.add_argument("-p","--panel",action="store_false",help="The UI is routed to the front panel")
-    parser.add_argument("-s","--simulate",action="store_true",default=False,help="When using a console based UI, simulate an LCD screen size")
-    parser.add_argument("--lcd_cols",type=int,default=20,help="Specify the number of columns of the LCD")
-    parser.add_argument("--lcd_rows",type=int,default=4,help="Specify the number of rows of the LCD")
+    ui_interface.add_argument("-p","--panel",action="store_true",help="The UI is routed to the front panel")
+    #parser.add_argument("--lcd_cols",type=int,default=20,help="Specify the number of columns of the LCD")
+    #parser.add_argument("--lcd_rows",type=int,default=4,help="Specify the number of rows of the LCD")
     parser.add_argument("--mpd_host",default=None,help="Specify the hostname/IP of the MPD server")
     parser.add_argument("--mpd_port",type=int,default=6600,help="Specify the port of the MPD server")
     parser.add_argument("--mpd_socket",default=MPD_default_socket_path,help="Specify the path to the MPD server socket (default): " + MPD_default_socket_path)
+    parser.add_argument("--user",default="palms",help="User to run as.")
     args = parser.parse_args()
+
+    # Are we running as root?
+    if os.getuid() == 0:
+        PALMS_DIR = "/var/lib/palms/"
+
+        try:
+            pwnam = pwd.getpwnam(args.user)
+        except:
+            print("PALMS: Could not find user - " + args.user)
+            return -1
+
+        # Check directory exists
+        if os.path.exists(PALMS_DIR):
+            stat_info = os.stat(PALMS_DIR)
+
+            # Check directory permissions
+            if (pwnam.pw_uid != stat_info.st_uid) or (pwnam.pw_gid != stat_info.st_gid):
+                print("PALMS: Check permissions for data directory " + PALMS_DIR)
+                return -1
+        else:
+            print("PALMS: Data directory " + PALMS_DIR + " does not exist.")
+            return -1
+
+        # Drop privileges
+        # Remove group privileges
+        os.setgroups(os.getgrouplist(pwnam.pw_name, pwnam.pw_gid))
+
+        # Try setting the new uid/gid
+        os.setgid(pwnam.pw_gid)
+        os.setuid(pwnam.pw_uid)
+
+        # Update 'HOME' environment variable
+        os.environ['HOME'] = pwnam.pw_dir
+
+#        # Change to directory
+#        os.chdir(pwnam.pw_dir)
+
+        #Ensure a reasonable umask
+        old_umask = os.umask(0o22)
+    else:
+        PALMS_DIR = os.environ['HOME']
+
+    # Check that privileges have dropped
+    if os.getuid() == 0:
+        print("PALMS: Privileges not dropped still root.")
+        return -1
+
+    PALMS_SQLPATH = PALMS_DIR + "/palms.dat"
 
     # Setup connection tp MPD Server
     mpd_client = MPDClient()
@@ -36,7 +84,11 @@ def main():
     mpd_client.connect(MPD_default_socket_path,None)
 
     # Connect to SQLite DB
-    sqlcon = sqlite3.connect(HOWDIE_SQLPATH)
+    try:
+        sqlcon = sqlite3.connect(PALMS_SQLPATH)
+    except:
+        print("PALMS: Could not open SQL file - " + PALMS_SQLPATH)
+        return -1
 
     # Setup the scheduler to read meta data from mplayer
     sched = BackgroundScheduler(daemon=False)
@@ -44,13 +96,15 @@ def main():
 
     # Create a screen
     if args.console:
+        import curses
         stdscr = curses.initscr()
         curses.noecho()
         curses.raw()
         stdscr.keypad(True)
         stdscr.nodelay(True)
     elif args.panel:
-        stdscr = curses_i2c()
+        from .dev_panel import dev_panel
+        stdscr = dev_panel()
     else:
         stdscr = None
 
@@ -70,6 +124,8 @@ def main():
         curses.noraw()
         curses.echo()
         curses.endwin()
+    elif args.panel:
+        stdscr.close()
     else:
         stdscr = None
 

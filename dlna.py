@@ -1,6 +1,6 @@
 from __future__ import print_function
 import curses
-from .curses_panel import curses_panel
+from .curses_wrapper import curses_wrapper
 from .mpdentity import MPDEntity
 from .ticker import Ticker
 from . import commands
@@ -58,6 +58,8 @@ class DLNA(object):
     def get_directory_list(self, path):
         self._screen.clear()
         self._screen.addstr(1,0,'Please wait'.center(20))
+        self._screen.refresh()
+
         dlist = []
         for item in self._parent.get_MPDclient().listfiles(path):
             tmp_mpde = MPDEntity(item, path)
@@ -66,7 +68,7 @@ class DLNA(object):
             dlist.append(tmp_mpde)
         if len(dlist) == 0:
             dlist.append(MPDEntity({ "Error": "N/A" }, ""))
-        self._directory_list = curses_panel.convert_2_pages(dlist, 8)
+        self._directory_list = curses_wrapper.convert_2_pages(dlist, 8)
         self._page = 0
 
     def generate_playlist(self):
@@ -96,7 +98,8 @@ class DLNA(object):
 
         # Get button presses
         if self.is_active():
-            buttons = curses_panel.getbuttons(self._screen)
+            self._parent.get_MPDclient().ping()
+            buttons = curses_wrapper.getbuttons(self._screen)
 
             # Handle over arching button events seperately
             if buttons == commands.CMD_POWER:
@@ -176,7 +179,7 @@ class DLNA(object):
              songid = self.generate_playlist()
              self.start_playback(songid)
              self._state = 1
-        elif buttons == commands.CMD_BACK:
+        elif buttons == commands.CMD_MODE:
              if len(self._paths) > 1:
                  self.move_out_directory()
              else:
@@ -205,6 +208,8 @@ class DLNA(object):
             dentry.pulse()
             screen_line_num += 1
             dentry_count += 1
+
+        self._screen.refresh()
 
     def show_stream_playback(self, buttons):
         screen_size = self._screen.getmaxyx()
@@ -249,7 +254,7 @@ class DLNA(object):
             self.pause_playback()
         elif buttons == commands.CMD_STOP:
             self.stop_playback()
-        elif buttons == commands.CMD_BACK:
+        elif buttons == commands.CMD_MODE:
             self._state = 0
         elif (buttons == commands.CMD_LEFT) | (buttons == commands.CMD_RIGHT):
             self._alt_display = self._alt_display ^ True
@@ -314,6 +319,8 @@ class DLNA(object):
 
         self._line1.pulse()
         self._line2.pulse()
+
+        self._screen.refresh()
 
 #####################################################################################################
 # MPD functions

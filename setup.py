@@ -1,6 +1,6 @@
 from __future__ import print_function
 import curses
-from .curses_panel import curses_panel
+from .curses_wrapper import curses_wrapper
 from . import commands
 
 class Setup(object):
@@ -40,7 +40,8 @@ class Setup(object):
     def io_handler(self):
         # Get button presses
         if self.is_active():
-            buttons = curses_panel.getbuttons(self._screen)
+            self._parent.get_MPDclient().ping()
+            buttons = curses_wrapper.getbuttons(self._screen)
 
             # Action button events
             if buttons == commands.CMD_POWER:
@@ -83,3 +84,4 @@ class Setup(object):
             self._screen.clear()
             self._screen.addstr(1,9,'Not')
             self._screen.addstr(2,4,'Implemented')
+            self._screen.refresh()
