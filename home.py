@@ -7,20 +7,20 @@ from .setup import Setup
 from . import commands
 
 class Home(object):
-    def __init__(self, ncrs, schd, sqlc, mpdc):
+    def __init__(self, ncrs, schd, conf, mpdc):
         self._curses = ncrs
         self._sched = schd
-        self._sqlcon = sqlc
+        self._config = conf
         self._mpd_client = mpdc
         self._active = True
         self._poweroff = False
 
         # Add widgets
         self._controls = []
-        self._controls.append(Radio(self))
+        self._controls.append(Radio(self, conf, mpdc))
         self._controls.append(DLNA(self))
         self._controls.append(USB(self))
-        self._controls.append(Setup(self))
+        self._controls.append(Setup(self, conf, mpdc))
         # Select the first widget
         self._controls[0].set_selected(True)
 
@@ -47,8 +47,8 @@ class Home(object):
     def get_curses(self):
         return self._curses
 
-    def get_sqlcon(self):
-        return self._sqlcon
+    def get_config(self):
+        return self._config
 
     def get_MPDclient(self):
         return self._mpd_client

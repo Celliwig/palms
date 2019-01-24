@@ -11,6 +11,7 @@ import sqlite3
 import os, pwd
 
 from . import *
+from .config import config
 from .home import Home
 from .curses_wrapper import *
 
@@ -126,6 +127,9 @@ def main():
         return -1
     logger.info("Opened SQL data file.")
 
+    # Create configuration
+    conf = config(sqlcon)
+
     # Setup the scheduler to read meta data from mplayer
     sched = BackgroundScheduler(daemon=False)
     sched.start()
@@ -141,7 +145,7 @@ def main():
 
 # Init Home
     logger.info("Starting P.A.L.M.S.")
-    home = Home(stdscr, sched, sqlcon, mpd_client)
+    home = Home(stdscr, sched, conf, mpd_client)
 
 # Idle loop
     while not home.is_poweroff():
@@ -157,6 +161,9 @@ def main():
     # Shutdown screen
     logger.debug("Shutting down task scheduler.")
     sched.shutdown()
+
+    # Save configuration
+    conf.save_config()
 
     # Close DB connection
     logger.info("Closing SQL data file.")

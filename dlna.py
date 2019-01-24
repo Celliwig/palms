@@ -197,18 +197,18 @@ class DLNA(object):
 
             self._curses.get_screen().refresh()
 
-        elif self._request_thread.error_occurred():
-            self._curses.get_screen().clear()
-            self._curses.get_screen().addstr(1,0,('Retrying... ' + str(self._request_thread.retries_left())).center(20))
-            self._curses.get_screen().refresh()
+#        elif self._request_thread.error_occurred():
+#            self._curses.get_screen().clear()
+#            self._curses.get_screen().addstr(1,0,('Retrying... ' + str(self._request_thread.retries_left())).center(20))
+#            self._curses.get_screen().refresh()
         elif self._request_thread.isAlive():
             self._curses.get_screen().clear()
             self._curses.get_screen().addstr(1,0,'Please wait'.center(20))
             self._curses.get_screen().refresh()
-        else:
-            self._curses.get_screen().clear()
-            self._curses.get_screen().addstr(1,0,'Error'.center(20))
-            self._curses.get_screen().refresh()
+#        else:
+#            self._curses.get_screen().clear()
+#            self._curses.get_screen().addstr(1,0,'Error'.center(20))
+#            self._curses.get_screen().refresh()
 
     def show_stream_playback(self, fp_command):
         screen_size = self._curses.get_screen().getmaxyx()

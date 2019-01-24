@@ -1,4 +1,5 @@
 from __future__ import print_function
+import os
 import platform
 import subprocess
 from socket import AF_INET
@@ -8,11 +9,15 @@ from .curses_wrapper import *
 
 class Setup(object):
     SETUP_STATE_LIST = 0
-    SETUP_STATE_SYSTEM = 1
-    SETUP_STATE_NETWORK = 2
+    SETUP_STATE_MPD = 1
+    SETUP_STATE_SYSTEM = 2
+    SETUP_STATE_NETWORK = 3
 
-    def __init__(self, home):
+    def __init__(self, home, conf, mpdc):
         self._parent = home
+        self._config = conf
+        self._mpd_client = mpdc
+
         self._curses = home.get_curses()
         self._sched = home.get_scheduler()
         self._active = False
@@ -21,11 +26,16 @@ class Setup(object):
 
         self._ip = IPRoute()
 
-        self._gadget_list = [ "System Info", "Network Info" ]
+        self._gadget_list = [ "MPD Info", "System Info", "Network Info" ]
         self._selected_gadget = 1
         self._list_offset = 0
+        self._selected_control = None
 
-        self._job = self._sched.add_job(self.io_handler, 'interval', seconds=0.1)
+        self._setup_set_defaults()
+
+        self._mpd_info_apply_source_config()
+
+        self._job = self._sched.add_job(self._io_handler, 'interval', seconds=0.1)
 
     def close(self):
         self._active = False
@@ -55,13 +65,13 @@ class Setup(object):
     def set_selected(self, val):
         self._selected = val
 
-    def io_handler(self):
+    def _io_handler(self):
         # Pause job (stops lots of warnings)
         self._job.pause()
 
         # Get button presses
         if self.is_active():
-            self._parent.get_MPDclient().ping()
+            self._mpd_client.ping()
             fp_command = self._curses.get_command()
 
             # Check for a change of command
@@ -80,19 +90,31 @@ class Setup(object):
                     self._parent.set_active(True)
 
             if self._state == Setup.SETUP_STATE_LIST:
-                self.list_gadgets(fp_command)
+                self._list_gadgets(fp_command)
+            elif self._state == Setup.SETUP_STATE_MPD:
+                self._mpd_info(fp_command)
             elif self._state == Setup.SETUP_STATE_SYSTEM:
-                self.system_info(fp_command)
+                self._system_info(fp_command)
             elif self._state == Setup.SETUP_STATE_NETWORK:
-                self.network_info(fp_command)
+                self._network_info(fp_command)
 
         # Resume job (should probably put this in a mutex)
         if self.is_active():
             self._job.resume()
 
+# Set defaults
+#####################################################################################################
+    def _setup_set_defaults(self):
+        if not self._config.exists("mpd_source_dir"):
+            self._config.set("mpd_source_dir", "/var/lib/mpd/music/")	# Directory where music is stored
+        if not self._config.exists("mpd_source_net"):
+            self._config.set("mpd_source_net", False)			# Don't make a soft link to /media/network
+        if not self._config.exists("mpd_source_usb"):
+            self._config.set("mpd_source_usb", False)			# Don't make a soft link to /media/usb
+
 # List the configable items
 #####################################################################################################
-    def list_gadgets(self, fp_command):
+    def _list_gadgets(self, fp_command):
         list_gadgets = []
         tmp_index = 1
         for tmp_gadget in self._gadget_list:
@@ -115,6 +137,7 @@ class Setup(object):
                     self._selected_gadget += 1
             if fp_command == commands.CMD_SELECT:
                 self._list_offset = 0
+                self._selected_control = None
                 self._state = self._selected_gadget
 
         self._curses.get_screen().clear()
@@ -122,9 +145,107 @@ class Setup(object):
             self._curses.get_screen().addstr(i, 0, list_gadgets[i])
         self._curses.get_screen().refresh()
 
+# MPD info
+#####################################################################################################
+    def _mpd_info(self, fp_command):
+        mpd_info = []
+        mpd_info.append("MPD Info".center(20))
+        mpd_info.append("")
+        mpd_info.append("Sources:")
+        if self._config.get("mpd_source_net"):
+            mpd_info.append("   NET: Yes")
+        else:
+            mpd_info.append("   NET: No")
+        if self._config.get("mpd_source_usb"):
+            mpd_info.append("   USB: Yes")
+        else:
+            mpd_info.append("   USB: No")
+        mpd_info.append("")
+
+        mpd_status = self._mpd_client.status()
+        mpd_stats = self._mpd_client.stats()
+        mpd_info.append("Statistics".center(20))
+        if "albums" in mpd_stats:
+            mpd_info.append("Albums: " + mpd_stats["albums"])
+        if "artists" in mpd_stats:
+            mpd_info.append("Artists: " + mpd_stats["artists"])
+        if "songs" in mpd_stats:
+            mpd_info.append("Tracks: " + mpd_stats["songs"])
+        if "playtime" in mpd_stats:
+            mpd_info.append("Playtime: " + mpd_stats["playtime"])
+        if "uptime" in mpd_stats:
+            mpd_info.append("Uptime: " + mpd_stats["uptime"])
+        mpd_info.append("")
+
+        mpd_info.append("Update".center(20))
+        if "updating_db" in mpd_status:
+            mpd_info.append("Update: In Progress")
+        else:
+            mpd_info.append("Update: Idle")
+        mpd_info.append("    Refresh")
+
+        # Possible controls start with
+        mpd_controls = { "   NET:": self._mpd_info_toggle_source_net, "   USB:": self._mpd_info_toggle_source_usb, "    Refresh": self._mpd_info_refresh_db }
+
+        # Check for a change of command
+        if self._curses.has_command_changed():
+            # Action button events
+            if fp_command == commands.CMD_UP:
+                if self._list_offset > 0:
+                    self._list_offset -= 1
+            if fp_command == commands.CMD_DOWN:
+                if self._list_offset < (len(mpd_info) - 4):
+                    self._list_offset += 1
+            if fp_command == commands.CMD_SELECT:
+                mpd_controls[self._selected_control]()
+
+        # Select a control on screen
+        self._selected_control = None
+        for i in range(0,4):
+            for tmp_control in mpd_controls:
+                if mpd_info[self._list_offset + i].startswith(tmp_control):
+                    self._selected_control = tmp_control
+                    break
+
+        # Draw screen
+        self._curses.get_screen().clear()
+        for i in range(0,4):
+            tmp_txt = mpd_info[self._list_offset + i]
+            if not self._selected_control is None:
+                if mpd_info[self._list_offset + i].startswith(self._selected_control):
+                    tmp_txt = ">" + (mpd_info[self._list_offset + i][1:])
+            self._curses.get_screen().addstr(i, 0, tmp_txt)
+        self._curses.get_screen().refresh()
+
+    def _mpd_info_toggle_source_net(self):
+        self._config.set("mpd_source_net", (self._config.get("mpd_source_net") ^ True))
+        self._mpd_info_apply_source_config()
+
+    def _mpd_info_toggle_source_usb(self):
+        self._config.set("mpd_source_usb", (self._config.get("mpd_source_usb") ^ True))
+        self._mpd_info_apply_source_config()
+
+    def _mpd_info_apply_source_config(self):
+        network_path = self._config.get("mpd_source_dir") + "network"
+        if os.path.islink(network_path):
+            os.unlink(network_path)
+        if self._config.get("mpd_source_net"):
+            if not os.path.exists(network_path):
+                os.symlink("/media/network", network_path)
+
+        usb_path = self._config.get("mpd_source_dir") + "usb"
+        if os.path.islink(usb_path):
+            os.unlink(usb_path)
+        if self._config.get("mpd_source_usb"):
+            if not os.path.exists(usb_path):
+                os.symlink("/media/usb", usb_path)
+
+    def _mpd_info_refresh_db(self):
+        self._mpd_client.update()
+
 # Displays network information
 #####################################################################################################
-    def network_info(self, fp_command):
+    def _network_info(self, fp_command):
         network_info = []
         network_info.append("Network".center(20))
         network_info.append("")
@@ -183,11 +304,12 @@ class Setup(object):
 
 # Displays system information
 #####################################################################################################
-    def system_info(self, fp_command):
+    def _system_info(self, fp_command):
         os_distro = platform.linux_distribution()
 
         system_info = []
         system_info.append("System".center(20))
+        system_info.append("")
         system_info.append('OS:  ' + platform.system())
         system_info.append('Distro:  ' + os_distro[0].capitalize() + " " + os_distro[1])
         system_info.append('Release: ' + platform.release())

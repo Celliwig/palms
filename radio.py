@@ -12,8 +12,11 @@ class Radio(object):
     RADIO_STATE_LIST_STATIONS = 1				# Display station list
     RADIO_STATE_PLAYBACK = 2					# Show playback of station
 
-    def __init__(self, home):
+    def __init__(self, home, conf, mpdc):
         self._parent = home
+        self._config = conf
+        self._mpd_client = mpdc
+
         self._curses = home.get_curses()
         self._sched = home.get_scheduler()
         self._active = False
@@ -83,7 +86,7 @@ class Radio(object):
 
         # Get button presses
         if self.is_active():
-            self._parent.get_MPDclient().ping()
+            self._mpd_client.ping()
             fp_command = self._curses.get_command()
 
             # Check for a change of command
@@ -91,7 +94,7 @@ class Radio(object):
                 # Handle over arching button events seperately
                 if fp_command == commands.CMD_POWER:
                     # Save the current station as default if playing
-                    mpd_status = self._parent.get_MPDclient().status()
+                    mpd_status = self._mpd_client.status()
                     playback_state = mpd_status["state"]
                     if playback_state == "play":
                         if not self._current_station == '':
@@ -216,7 +219,7 @@ class Radio(object):
     def show_stream_playback(self, fp_command):
         screen_size = self._curses.get_screen().getmaxyx()
 
-        mpd_status = self._parent.get_MPDclient().status()
+        mpd_status = self._mpd_client.status()
         current_volume = int(mpd_status["volume"])
         playback_state = mpd_status["state"]
         if "time" in mpd_status:
@@ -232,7 +235,7 @@ class Radio(object):
         else:
             audiostream_info = ""
 
-        mpd_songinfo = self._parent.get_MPDclient().currentsong()
+        mpd_songinfo = self._mpd_client.currentsong()
         if "name" in mpd_songinfo:
             song_station = mpd_songinfo["name"]
             song_station = self.extract_station_name(song_station)
@@ -408,28 +411,28 @@ class Radio(object):
             self._current_station = station.get_url()
 
             self.stop_playback()
-            self._parent.get_MPDclient().clear()
-            self._parent.get_MPDclient().add(self._current_station)
+            self._mpd_client.clear()
+            self._mpd_client.add(self._current_station)
             self.start_playback()
 
     def start_playback(self):
-        self._parent.get_MPDclient().play()
+        self._mpd_client.play()
 
     def pause_playback(self):
-        self._parent.get_MPDclient().pause()
+        self._mpd_client.pause()
 
     def stop_playback(self):
-        self._parent.get_MPDclient().stop()
+        self._mpd_client.stop()
 
     def volume_down(self, current_vol):
         if current_vol > 0:
             current_vol -= 1
-        self._parent.get_MPDclient().setvol(current_vol)
+        self._mpd_client.setvol(current_vol)
 
     def volume_up(self, current_vol):
         if current_vol < 100:
             current_vol += 1
-        self._parent.get_MPDclient().setvol(current_vol)
+        self._mpd_client.setvol(current_vol)
 
     def extract_station_name(self, station):
         return re.search('^([0-9A-Za-z ]+)', station).group(1)
@@ -437,20 +440,20 @@ class Radio(object):
 #####################################################################################################
 # SQL functions
     def set_preset(self, preset, station):
-        sql_csr = self._parent.get_sqlcon().cursor()
+        sql_csr = self._config.get_sqlcon().cursor()
         sql_update = "REPLACE INTO radio_presets (preset, station_name, station_url) VALUES (\"" + str(preset) + "\", \"" + station.get_name() + "\", \"" + station.get_url() + "\")"
         sql_csr.execute(sql_update)
-        self._parent.get_sqlcon().commit()
+        self._config.get_sqlcon().commit()
 
     def del_preset(self, preset):
-        sql_csr = self._parent.get_sqlcon().cursor()
+        sql_csr = self._config.get_sqlcon().cursor()
         sql_update = "DELETE FROM radio_presets WHERE preset=\"" + str(preset) + "\""
         sql_csr.execute(sql_update)
-        self._parent.get_sqlcon().commit()
+        self._config.get_sqlcon().commit()
 
     def load_presets(self):
         presets = [ None, None, None, None, None, None, None, None, None ]
-        sql_csr = self._parent.get_sqlcon().cursor()
+        sql_csr = self._config.get_sqlcon().cursor()
         sql_presets = "select preset, station_name, station_url from radio_presets"
         sql_csr.execute(sql_presets)
         rows = sql_csr.fetchall()
@@ -460,20 +463,20 @@ class Radio(object):
         self._presets = presets
 
     def add_station(self, name, url):
-        sql_csr = self._parent.get_sqlcon().cursor()
+        sql_csr = self._config.get_sqlcon().cursor()
         sql_update = "INSERT INTO radio_stations (station_name, station_url) VALUES (\"" + name + "\", \"" + url + "\")"
         sql_csr.execute(sql_update)
-        self._parent.get_sqlcon().commit()
+        self._config.get_sqlcon().commit()
 
     def del_station(self, name):
-        sql_csr = self._parent.get_sqlcon().cursor()
+        sql_csr = self._config.get_sqlcon().cursor()
         sql_update = "DELETE FROM radio_stations WHERE station_name=\"" + name + "\""
         sql_csr.execute(sql_update)
-        self._parent.get_sqlcon().commit()
+        self._config.get_sqlcon().commit()
 
     def load_stations(self):
         stations = []
-        sql_csr = self._parent.get_sqlcon().cursor()
+        sql_csr = self._config.get_sqlcon().cursor()
         sql_stations = "select station_name, station_url from radio_stations order by station_name"
         sql_csr.execute(sql_stations)
         rows = sql_csr.fetchall()
@@ -485,7 +488,7 @@ class Radio(object):
         self._stations = screen_utils.convert_2_pages(stations,8)
 
     def create_tables(self):
-        sql_csr = self._parent.get_sqlcon().cursor()
+        sql_csr = self._config.get_sqlcon().cursor()
 
         # Check if table exist
         sql_table_check = "SELECT name FROM sqlite_master WHERE type='table' AND name='radio_presets';"
@@ -495,7 +498,7 @@ class Radio(object):
         if table_exists is None:
             sql_table_create = "CREATE TABLE radio_presets (preset INTEGER PRIMARY KEY, station_name TEXT, station_url TEXT)"
             sql_csr.execute(sql_table_create)
-            self._parent.get_sqlcon().commit()
+            self._config.get_sqlcon().commit()
 
         # Check if table exist
         sql_table_check = "SELECT name FROM sqlite_master WHERE type='table' AND name='radio_stations';"
@@ -505,7 +508,7 @@ class Radio(object):
         if table_exists is None:
             sql_table_create = "CREATE TABLE radio_stations (station_name TEXT, station_url TEXT)"
             sql_csr.execute(sql_table_create)
-            self._parent.get_sqlcon().commit()
+            self._config.get_sqlcon().commit()
 
             # Add some stations
             # SomaFM
