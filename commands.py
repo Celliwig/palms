@@ -52,8 +52,8 @@ CMD_MUTE = 0x51
 CMD_AUDIO = 0x52
 
 # Unassigned
-CMD_ALT1 = 0x61
-CMD_ALT2 = 0x62
+CMD_ALT1 = 0x61            # Remote 'L' - Shuffle
+CMD_ALT2 = 0x62            # Remote 'R' - Repeat
 CMD_ALT3 = 0x63
 CMD_ALT4 = 0x64
 CMD_ALT5 = 0x65

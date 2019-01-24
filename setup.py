@@ -31,10 +31,6 @@ class Setup(object):
         self._list_offset = 0
         self._selected_control = None
 
-        self._setup_set_defaults()
-
-        self._mpd_info_apply_source_config()
-
         self._job = self._sched.add_job(self._io_handler, 'interval', seconds=0.1)
 
     def close(self):
@@ -64,16 +60,6 @@ class Setup(object):
 
     def set_selected(self, val):
         self._selected = val
-
-# Set defaults if they don't exist
-#####################################################################################################
-    def _setup_set_defaults(self):
-        if not self._config.exists("mpd_source_dir"):
-            self._config.set("mpd_source_dir", "/var/lib/mpd/music/")	# Directory where music is stored
-        if not self._config.exists("mpd_source_net"):
-            self._config.set("mpd_source_net", False)			# Don't make a soft link to /media/network
-        if not self._config.exists("mpd_source_usb"):
-            self._config.set("mpd_source_usb", False)			# Don't make a soft link to /media/usb
 
 # Method called by the scheduler, proceeds based on current state
 #####################################################################################################
@@ -221,26 +207,11 @@ class Setup(object):
 
     def _mpd_info_toggle_source_net(self):
         self._config.set("mpd_source_net", (self._config.get("mpd_source_net") ^ True))
-        self._mpd_info_apply_source_config()
+        self._mpd_client.apply_source_config()
 
     def _mpd_info_toggle_source_usb(self):
         self._config.set("mpd_source_usb", (self._config.get("mpd_source_usb") ^ True))
-        self._mpd_info_apply_source_config()
-
-    def _mpd_info_apply_source_config(self):
-        network_path = self._config.get("mpd_source_dir") + "network"
-        if os.path.islink(network_path):
-            os.unlink(network_path)
-        if self._config.get("mpd_source_net"):
-            if not os.path.exists(network_path):
-                os.symlink("/media/network", network_path)
-
-        usb_path = self._config.get("mpd_source_dir") + "usb"
-        if os.path.islink(usb_path):
-            os.unlink(usb_path)
-        if self._config.get("mpd_source_usb"):
-            if not os.path.exists(usb_path):
-                os.symlink("/media/usb", usb_path)
+        self._mpd_client.apply_source_config()
 
     def _mpd_info_refresh_db(self):
         self._mpd_client.update()

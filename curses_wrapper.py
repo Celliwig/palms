@@ -108,6 +108,12 @@ class curses_wrapper(object):
                 rtn = rtn | commands.CMD_NEXT
             elif key == curses.KEY_F12:
                 rtn = rtn | commands.CMD_POWER
+            elif key == ord('v'):
+                rtn = rtn | commands.CMD_MUTE
+            elif key == ord('r'):
+                rtn = rtn | commands.CMD_ALT2
+            elif key == ord('s'):
+                rtn = rtn | commands.CMD_ALT1
 
         elif self._screen_type == self.SCREEN_TYPE_FPDEVICE:
             rtn = self._screen.getbuttons();

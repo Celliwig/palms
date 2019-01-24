@@ -2,7 +2,6 @@ from __future__ import print_function
 import logging
 from .radio import Radio
 from .browser import Browser
-from .usb import USB
 from .setup import Setup
 from . import commands
 
@@ -18,8 +17,7 @@ class Home(object):
         # Add widgets
         self._controls = []
         self._controls.append(Radio(self, conf, mpdc))
-        self._controls.append(Browser(self))
-        self._controls.append(USB(self))
+        self._controls.append(Browser(self, conf, mpdc))
         self._controls.append(Setup(self, conf, mpdc))
         # Select the first widget
         self._controls[0].set_selected(True)

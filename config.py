@@ -8,7 +8,8 @@ class config(object):
 
         self._logger = logging.getLogger(__name__)
 
-        self.create_tables()
+        self._set_defaults()
+        self._create_tables()
         self.load_config()
 
     def exists(self, key):
@@ -25,6 +26,17 @@ class config(object):
 
     def get_sqlcon(self):
         return self._sqlcon
+
+# Create default settings (actual settings loaded afterwards, so don't need any checks)
+#####################################################################################################
+    def _set_defaults(self):
+        self.set("mpd_source_dir", "/var/lib/mpd/music/")	# Directory where music is stored
+        self.set("mpd_source_net", False)			# Don't make a soft link to /media/network
+        self.set("mpd_source_usb", False)			# Don't make a soft link to /media/usb
+        self.set("mpd_repeat", 0)				# By default disable repeating
+        self.set("mpd_shuffle", 0)				# By default disable random play
+        self.set("volume_b4_mute", 100)				# When muting, save the original volume so it can be restored
+        self.set("volume_current", 100)				# The current volume set in MPD
 
 #####################################################################################################
 # SQL functions
@@ -84,7 +96,7 @@ class config(object):
         sql_csr.execute(sql_update)
         self._sqlcon.commit()
 
-    def create_tables(self):
+    def _create_tables(self):
         sql_csr = self._sqlcon.cursor()
 
         # Check if table exist

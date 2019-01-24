@@ -22,7 +22,6 @@ class Radio(object):
         self._active = False
         self._selected = False
         self._state = Radio.RADIO_STATE_INIT
-        self._current_station = ""
         self._page = -1
         self._alt_display = False
 
@@ -77,6 +76,21 @@ class Radio(object):
     def set_selected(self, val):
         self._selected = val
 
+    def _save_default(self):
+        # Save the current station as default if playing
+        tmp_station = None
+
+        mpd_status = self._mpd_client.status()
+        if mpd_status["state"] == "play":
+            song_info = self._mpd_client.currentsong()
+            if 'file' in song_info:
+                tmp_station = Station("default", song_info['file'])
+
+        self._presets[0] = tmp_station
+
+    def _extract_station_name(self, station):
+        return re.search('^([0-9A-Za-z ]+)', station).group(1)
+
 # Method called by the scheduler, proceeds based on current state
 #####################################################################################################
     def _io_handler(self):
@@ -89,29 +103,6 @@ class Radio(object):
             self._mpd_client.ping()
             fp_command = self._curses.get_command()
 
-            # Check for a change of command
-            if self._curses.has_command_changed():
-                # Handle over arching button events seperately
-                if fp_command == commands.CMD_POWER:
-                    # Save the current station as default if playing
-                    mpd_status = self._mpd_client.status()
-                    playback_state = mpd_status["state"]
-                    if playback_state == "play":
-                        if not self._current_station == '':
-                            tmp_station = Station("default", self._current_station)
-                            self._presets[0] = tmp_station
-                    else:
-                        # Clear default station only if at some point we have started playback of a radio station
-                        if not self._current_station == '':
-                            self._presets[0] = None
-
-                    self._parent.set_poweroff(True)
-
-                # Home button
-                elif fp_command == commands.CMD_CDHD:
-                    self.set_active(False)
-                    self._parent.set_active(True)
-
             # Actions are dependent on machine state
             # Init
             if self._state == Radio.RADIO_STATE_INIT:
@@ -119,7 +110,7 @@ class Radio(object):
                 if self._presets[0] is None:
                     self._state = Radio.RADIO_STATE_LIST_STATIONS
                 else:
-                    self._play_station(self._presets[0])
+                    self._mpd_client.play_radio_station(self._presets[0])
                     self._state = Radio.RADIO_STATE_PLAYBACK
             # List radio stations
             elif (self._state == Radio.RADIO_STATE_LIST_STATIONS):
@@ -136,6 +127,22 @@ class Radio(object):
             # Station selected
             elif (self._state == Radio.RADIO_STATE_PLAYBACK):
                 self._show_stream_playback(fp_command)
+
+            # Handle over arching button events seperately
+            # Check for a change of command
+            if self._curses.has_command_changed():
+                # Power button
+                if fp_command == commands.CMD_POWER:
+                    self._save_default()
+                    self._parent.set_poweroff(True)
+                # Home button
+                elif fp_command == commands.CMD_CDHD:
+                    self._save_default()
+                    self.set_active(False)
+                    self._parent.set_active(True)
+                    self._state = Radio.RADIO_STATE_INIT
+                elif fp_command == commands.CMD_MUTE:
+                    self._mpd_client.toggle_mute()
 
         # Resume job (should probably put this in a mutex)
         if self.is_active():
@@ -187,7 +194,7 @@ class Radio(object):
             elif (fp_command == commands.CMD_SELECT) or (fp_command == commands.CMD_RIGHT):
                 for station in self._stations[self._page]:
                     if station.is_selected():
-                        self._play_station(station)
+                        self._mpd_client.play_radio_station(station)
                         self._state = Radio.RADIO_STATE_PLAYBACK
             elif fp_command == commands.CMD_MODE:
                 self._state = Radio.RADIO_STATE_PLAYBACK
@@ -250,15 +257,15 @@ class Radio(object):
         # Check for a change of command
         if self._curses.has_command_changed():
             if fp_command == commands.CMD_UP:
-                self._volume_up(current_volume)
+                self._mpd_client.volume_up()
             elif fp_command == commands.CMD_DOWN:
-                self._volume_down(current_volume)
+                self._mpd_client.volume_down()
             elif fp_command == commands.CMD_PLAY:
-                self._start_playback()
+                self._mpd_client.play()
             elif fp_command == commands.CMD_PAUSE:
-                self._pause_playback()
+                self._mpd_client.pause()
             elif fp_command == commands.CMD_STOP:
-                self._stop_playback()
+                self._mpd_client.stop()
             elif fp_command == commands.CMD_MODE:
                 self._state = Radio.RADIO_STATE_LIST_STATIONS
             elif (fp_command == commands.CMD_LEFT) | (fp_command == commands.CMD_RIGHT):
@@ -268,42 +275,42 @@ class Radio(object):
                 #self._logger.debug("IR remoted selected radio preset 1.")
                 tmp_preset = self._presets[1]
                 if not tmp_preset is None:
-                    self._play_station(tmp_preset)
+                    self._mpd_client.play_radio_station(tmp_preset)
             elif fp_command == commands.CMD_2:
                 #self._logger.debug("IR remoted selected radio preset 2.")
                 tmp_preset = self._presets[2]
                 if not tmp_preset is None:
-                    self._play_station(tmp_preset)
+                    self._mpd_client.play_radio_station(tmp_preset)
             elif fp_command == commands.CMD_3:
                 #self._logger.debug("IR remoted selected radio preset 3.")
                 tmp_preset = self._presets[3]
                 if not tmp_preset is None:
-                    self._play_station(tmp_preset)
+                    self._mpd_client.play_radio_station(tmp_preset)
             elif fp_command == commands.CMD_4:
                 #self._logger.debug("IR remoted selected radio preset 4.")
                 tmp_preset = self._presets[4]
                 if not tmp_preset is None:
-                    self._play_station(tmp_preset)
+                    self._mpd_client.play_radio_station(tmp_preset)
             elif fp_command == commands.CMD_5:
                 #self._logger.debug("IR remoted selected radio preset 5.")
                 tmp_preset = self._presets[5]
                 if not tmp_preset is None:
-                    self._play_station(tmp_preset)
+                    self._mpd_client.play_radio_station(tmp_preset)
             elif fp_command == commands.CMD_6:
                 #self._logger.debug("IR remoted selected radio preset 6.")
                 tmp_preset = self._presets[6]
                 if not tmp_preset is None:
-                    self._play_station(tmp_preset)
+                    self._mpd_client.play_radio_station(tmp_preset)
             elif fp_command == commands.CMD_7:
                 #self._logger.debug("IR remoted selected radio preset 7.")
                 tmp_preset = self._presets[7]
                 if not tmp_preset is None:
-                    self._play_station(tmp_preset)
+                    self._mpd_client.play_radio_station(tmp_preset)
             elif fp_command == commands.CMD_8:
                 #self._logger.debug("IR remoted selected radio preset 8.")
                 tmp_preset = self._presets[8]
                 if not tmp_preset is None:
-                    self._play_station(tmp_preset)
+                    self._mpd_client.play_radio_station(tmp_preset)
 
             # Handle preset selection, and saving
             elif (fp_command & commands.CMD_DSPSEL_MASK) == commands.CMD_DSPSEL_MASK:
@@ -365,7 +372,7 @@ class Radio(object):
                             tmp_preset = self._presets[i + 1]
 
                         if not tmp_preset is None:
-                            self._play_station(tmp_preset)
+                            self._mpd_client.play_radio_station(tmp_preset)
                     self._presets_buttondown_count[i] = 0
 
         # Draw screen
@@ -404,39 +411,6 @@ class Radio(object):
         self._song_ticker.pulse()
 
         self._curses.get_screen().refresh()
-
-# MPD functions
-#####################################################################################################
-    def _play_station(self, station):
-        if station.get_url() != self._current_station:
-            self._current_station = station.get_url()
-
-            self._stop_playback()
-            self._mpd_client.clear()
-            self._mpd_client.add(self._current_station)
-            self._start_playback()
-
-    def _start_playback(self):
-        self._mpd_client.play()
-
-    def _pause_playback(self):
-        self._mpd_client.pause()
-
-    def _stop_playback(self):
-        self._mpd_client.stop()
-
-    def _volume_down(self, current_vol):
-        if current_vol > 0:
-            current_vol -= 1
-        self._mpd_client.setvol(current_vol)
-
-    def _volume_up(self, current_vol):
-        if current_vol < 100:
-            current_vol += 1
-        self._mpd_client.setvol(current_vol)
-
-    def _extract_station_name(self, station):
-        return re.search('^([0-9A-Za-z ]+)', station).group(1)
 
 # SQL functions
 #####################################################################################################

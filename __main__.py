@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
-from mpd import MPDClient
 import sys
 from time import sleep
 import argparse
@@ -14,6 +13,7 @@ from . import *
 from .config import config
 from .home import Home
 from .curses_wrapper import *
+from .mpd_extras import MPDClient_extra
 
 def usage():
     print(USAGE % sys.argv[0])
@@ -130,15 +130,6 @@ def main():
     if not "ticker" in debug_modules:
         logging.getLogger("palms.ticker").setLevel(logging.INFO)
 
-    # Setup connection tp MPD Server
-    logger.debug("Preparing to connect to MPD daemon using socket: " + MPD_default_socket_path)
-    mpd_client = MPDClient()
-    mpd_client.timeout = 240
-    mpd_client.idletimeout = 240
-    mpd_client.connect(MPD_default_socket_path,None)
-    mpd_client.clear()
-    logger.info("Connected to MPD daemon.")
-
     # Connect to SQLite DB
     logger.debug("Preparing to open SQL data file: " + PALMS_SQLPATH)
     try:
@@ -150,6 +141,16 @@ def main():
 
     # Create configuration
     conf = config(sqlcon)
+
+    # Setup connection tp MPD Server
+    logger.debug("Preparing to connect to MPD daemon using socket: " + MPD_default_socket_path)
+    mpd_client = MPDClient_extra(conf)
+    mpd_client.timeout = 240
+    mpd_client.idletimeout = 240
+    mpd_client.connect(MPD_default_socket_path,None)
+    mpd_client.clear()
+    mpd_client.load_config()
+    logger.info("Connected to MPD daemon.")
 
     # Setup the scheduler to read meta data from mplayer
     sched = BackgroundScheduler(daemon=False)
@@ -183,17 +184,17 @@ def main():
     logger.debug("Shutting down task scheduler.")
     sched.shutdown()
 
+    # Close MPD connection
+    logger.info("Closing MPD connection.")
+    mpd_client.close()
+    mpd_client.disconnect()
+
     # Save configuration
     conf.save_config()
 
     # Close DB connection
     logger.info("Closing SQL data file.")
     sqlcon.close()
-
-    # Close MPD connection
-    logger.info("Closing MPD connection.")
-    mpd_client.close()
-    mpd_client.disconnect()
 
     return 0
 
