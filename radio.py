@@ -42,7 +42,7 @@ class Radio(object):
         self._active = False
 
         # Save preset configuration
-        for i in range(0,5):
+        for i in range(0,9):
             tmp_preset = self._presets[i]
             if tmp_preset is None:
                 self.del_preset(i)
@@ -84,12 +84,12 @@ class Radio(object):
         # Get button presses
         if self.is_active():
             self._parent.get_MPDclient().ping()
-            buttons = self._curses.get_command()
+            fp_command = self._curses.get_command()
 
             # Check for a change of command
             if self._curses.has_command_changed():
                 # Handle over arching button events seperately
-                if buttons == commands.CMD_POWER:
+                if fp_command == commands.CMD_POWER:
                     # Save the current station as default if playing
                     mpd_status = self._parent.get_MPDclient().status()
                     playback_state = mpd_status["state"]
@@ -105,7 +105,7 @@ class Radio(object):
                     self._parent.set_poweroff(True)
 
                 # Home button
-                elif buttons == commands.CMD_CDHD:
+                elif fp_command == commands.CMD_CDHD:
                     self.set_active(False)
                     self._parent.set_active(True)
 
@@ -129,10 +129,10 @@ class Radio(object):
                                 self._page = tmp_page
                         tmp_page += 1
 
-                self.list_radio_stations(buttons)
+                self.list_radio_stations(fp_command)
             # Station selected
             elif (self._state == Radio.RADIO_STATE_PLAYBACK):
-                self.show_stream_playback(buttons)
+                self.show_stream_playback(fp_command)
 
         # Resume job (should probably put this in a mutex)
         if self.is_active():
@@ -140,12 +140,12 @@ class Radio(object):
 
 # Display a list of stored radio stations
 #####################################################################################################
-    def list_radio_stations(self, buttons):
+    def list_radio_stations(self, fp_command):
         screen_size = self._curses.get_screen().getmaxyx()
 
         # Check for a change of command
         if self._curses.has_command_changed():
-            if buttons == commands.CMD_UP:
+            if fp_command == commands.CMD_UP:
                 last_station = None
                 for station in self._stations[self._page]:
                     if station.is_selected():
@@ -163,7 +163,7 @@ class Radio(object):
                             station.set_selected(False)
                         break
                     last_station = station
-            elif buttons == commands.CMD_DOWN:
+            elif fp_command == commands.CMD_DOWN:
                 last_station = None
                 for station in self._stations[self._page]:
                     if not last_station is None:
@@ -181,13 +181,13 @@ class Radio(object):
                         self._page += 1
                     last_station.set_selected(False)
                     self._stations[self._page][0].set_selected(True)
-            elif buttons == commands.CMD_SELECT:
+            elif fp_command == commands.CMD_SELECT:
                 for station in self._stations[self._page]:
                     if station.is_selected():
                         self.play_station(station)
                         self._state = Radio.RADIO_STATE_PLAYBACK
             # Back button
-            elif buttons == commands.CMD_MODE:
+            elif fp_command == commands.CMD_MODE:
                 self.set_active(False)
                 self._parent.set_active(True)
 
@@ -213,7 +213,7 @@ class Radio(object):
 
 # Display playback information
 #####################################################################################################
-    def show_stream_playback(self, buttons):
+    def show_stream_playback(self, fp_command):
         screen_size = self._curses.get_screen().getmaxyx()
 
         mpd_status = self._parent.get_MPDclient().status()
@@ -245,93 +245,121 @@ class Radio(object):
 
         # Check for a change of command
         if self._curses.has_command_changed():
-            if buttons == commands.CMD_UP:
+            if fp_command == commands.CMD_UP:
                 self.volume_up(current_volume)
-            elif buttons == commands.CMD_DOWN:
+            elif fp_command == commands.CMD_DOWN:
                 self.volume_down(current_volume)
-            elif buttons == commands.CMD_PLAY:
+            elif fp_command == commands.CMD_PLAY:
                 self.start_playback()
-            elif buttons == commands.CMD_PAUSE:
+            elif fp_command == commands.CMD_PAUSE:
                 self.pause_playback()
-            elif buttons == commands.CMD_STOP:
+            elif fp_command == commands.CMD_STOP:
                 self.stop_playback()
-            elif buttons == commands.CMD_MODE:
+            elif fp_command == commands.CMD_MODE:
                 self._state = Radio.RADIO_STATE_LIST_STATIONS
-            elif (buttons == commands.CMD_LEFT) | (buttons == commands.CMD_RIGHT):
+            elif (fp_command == commands.CMD_LEFT) | (fp_command == commands.CMD_RIGHT):
                 self._alt_display = self._alt_display ^ True
             # Support selecting radio preset from IR remote, using numeric keys
-            elif buttons == commands.CMD_1:
+            elif fp_command == commands.CMD_1:
                 #self._logger.debug("IR remoted selected radio preset 1.")
                 tmp_preset = self._presets[1]
                 if not tmp_preset is None:
                     self.play_station(tmp_preset)
-            elif buttons == commands.CMD_2:
+            elif fp_command == commands.CMD_2:
                 #self._logger.debug("IR remoted selected radio preset 2.")
                 tmp_preset = self._presets[2]
                 if not tmp_preset is None:
                     self.play_station(tmp_preset)
-            elif buttons == commands.CMD_3:
+            elif fp_command == commands.CMD_3:
                 #self._logger.debug("IR remoted selected radio preset 3.")
                 tmp_preset = self._presets[3]
                 if not tmp_preset is None:
                     self.play_station(tmp_preset)
-            elif buttons == commands.CMD_4:
+            elif fp_command == commands.CMD_4:
                 #self._logger.debug("IR remoted selected radio preset 4.")
                 tmp_preset = self._presets[4]
                 if not tmp_preset is None:
                     self.play_station(tmp_preset)
+            elif fp_command == commands.CMD_5:
+                #self._logger.debug("IR remoted selected radio preset 5.")
+                tmp_preset = self._presets[5]
+                if not tmp_preset is None:
+                    self.play_station(tmp_preset)
+            elif fp_command == commands.CMD_6:
+                #self._logger.debug("IR remoted selected radio preset 6.")
+                tmp_preset = self._presets[6]
+                if not tmp_preset is None:
+                    self.play_station(tmp_preset)
+            elif fp_command == commands.CMD_7:
+                #self._logger.debug("IR remoted selected radio preset 7.")
+                tmp_preset = self._presets[7]
+                if not tmp_preset is None:
+                    self.play_station(tmp_preset)
+            elif fp_command == commands.CMD_8:
+                #self._logger.debug("IR remoted selected radio preset 8.")
+                tmp_preset = self._presets[8]
+                if not tmp_preset is None:
+                    self.play_station(tmp_preset)
+
             # Handle preset selection, and saving
-            elif (buttons & commands.CMD_DSPSEL_MASK) == commands.CMD_DSPSEL_MASK:
-                if buttons == commands.CMD_DSPSEL1:
+            elif (fp_command & commands.CMD_DSPSEL_MASK) == commands.CMD_DSPSEL_MASK:
+                presets_bank = 0					# Select which bank of presets to update
+                if self._alt_display: presets_bank = 4
+
+                if fp_command == commands.CMD_DSPSEL1:
                     # If the button has been depressed for more than 5 secs
                     if self._presets_buttondown_count[0] > 15:
                         if playback_state == "play":
                             for station in self._stations[self._page]:
                                 if station.is_selected():
-                                    self._presets[1] = station
+                                    self._presets[1 + presets_bank] = station
                         else:
-                            self._presets[1] = None
+                            self._presets[1 + presets_bank] = None
                     else:
                         self._presets_buttondown_count[0] += 1
-                elif buttons == commands.CMD_DSPSEL2:
+                elif fp_command == commands.CMD_DSPSEL2:
                     # If the button has been depressed for more than 5 secs
                     if self._presets_buttondown_count[1] > 15:
                         if playback_state == "play":
                             for station in self._stations[self._page]:
                                 if station.is_selected():
-                                    self._presets[2] = station
+                                    self._presets[2 + presets_bank] = station
                         else:
-                            self._presets[2] = None
+                            self._presets[2 + presets_bank] = None
                     else:
                         self._presets_buttondown_count[1] += 1
-                elif buttons == commands.CMD_DSPSEL3:
+                elif fp_command == commands.CMD_DSPSEL3:
                     # If the button has been depressed for more than 5 secs
                     if self._presets_buttondown_count[2] > 15:
                         if playback_state == "play":
                             for station in self._stations[self._page]:
                                 if station.is_selected():
-                                    self._presets[3] = station
+                                    self._presets[3 + presets_bank] = station
                         else:
-                            self._presets[3] = None
+                            self._presets[3 + presets_bank] = None
                     else:
                         self._presets_buttondown_count[2] += 1
-                elif buttons == commands.CMD_DSPSEL4:
+                elif fp_command == commands.CMD_DSPSEL4:
                     # If the button has been depressed for more than 5 secs
                     if self._presets_buttondown_count[3] > 15:
                         if playback_state == "play":
                             for station in self._stations[self._page]:
                                 if station.is_selected():
-                                    self._presets[4] = station
+                                    self._presets[4 + presets_bank] = station
                         else:
-                            self._presets[4] = None
+                            self._presets[4 + presets_bank] = None
                     else:
                         self._presets_buttondown_count[3] += 1
             # This is a catch all, so has to be last
-            elif (buttons & commands.CMD_DSPSEL_MASK) == 0:
+            elif (fp_command & commands.CMD_DSPSEL_MASK) == 0:
                 for i in range(0,4):
                     # There's some 'bounce' so ignore any fast transitions, otherwise you start playing instead of clearing
                     if self._presets_buttondown_count[i] > 1:
-                        tmp_preset = self._presets[i + 1]
+                        if self._alt_display:
+                            tmp_preset = self._presets[i + 5]
+                        else:
+                            tmp_preset = self._presets[i + 1]
+
                         if not tmp_preset is None:
                             self.play_station(tmp_preset)
                     self._presets_buttondown_count[i] = 0
@@ -358,7 +386,10 @@ class Radio(object):
         self._curses.get_screen().addstr(2,0,line2)
         menu_str = ""
         for i in range(1,5):
-            tmp_preset = self._presets[i]
+            if self._alt_display:
+                tmp_preset = self._presets[i + 4]
+            else:
+                tmp_preset = self._presets[i]
             if tmp_preset is None:
                 menu_str += "     "
             else:
@@ -418,7 +449,7 @@ class Radio(object):
         self._parent.get_sqlcon().commit()
 
     def load_presets(self):
-        presets = [ None, None, None, None, None ]
+        presets = [ None, None, None, None, None, None, None, None, None ]
         sql_csr = self._parent.get_sqlcon().cursor()
         sql_presets = "select preset, station_name, station_url from radio_presets"
         sql_csr.execute(sql_presets)

@@ -1,4 +1,4 @@
-import os, sys
+import os, subprocess, sys
 
 class dev_panel(object):
     lcd_rows = 4
@@ -8,11 +8,21 @@ class dev_panel(object):
 
     def __init__(self):
         self._device_fd = os.open(self.piadagio_devname, os.O_RDWR)
+        self._device_fd_version = "N/A"
+
+        # Get the module version
+        module_version_info = subprocess.check_output(args=["modinfo", "piadagio_fp"]).decode().split('\n')
+        for tmp_mod_info in module_version_info:
+            if tmp_mod_info.startswith('version:'):
+                self._device_fd_version = tmp_mod_info.replace("version:", "").strip()
 
     def close(self):
         if not self._device_fd is None:
             os.close(self._device_fd)
             self._device_fd = None
+
+    def get_device_module_version(self):
+        return self._device_fd_version
 
 # Full screen clear
     def clear(self):

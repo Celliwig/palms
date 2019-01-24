@@ -62,6 +62,9 @@ class curses_wrapper(object):
     def get_screen(self):
         return self._screen
 
+    def get_screen_type(self):
+        return self._screen_type
+
     def get_command(self):
         rtn = 0
         self._command_previous = self._command_current
