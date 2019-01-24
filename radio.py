@@ -4,6 +4,7 @@ import re
 from .curses_panel import curses_panel
 from .station import Station
 from .ticker import Ticker
+from . import commands
 
 class Radio(object):
     def __init__(self, home):
@@ -71,7 +72,7 @@ class Radio(object):
             buttons = curses_panel.getbuttons(self._screen)
 
             # Handle over arching button events seperately
-            if (buttons & curses_panel.BUTTON_POWER) > 0:
+            if buttons == commands.CMD_POWER:
                 # Save the current station as default if playing
                 mpd_status = self._parent.get_MPDclient().status()
                 playback_state = mpd_status["state"]
@@ -85,7 +86,7 @@ class Radio(object):
                         self._presets[0] = None
 
                 self._parent.set_poweroff(True)
-            elif (buttons & curses_panel.BUTTON_MENU) > 0:
+            elif buttons == commands.CMD_CDHD:
                 self.set_active(False)
                 self._parent.set_active(True)
 
@@ -128,7 +129,7 @@ class Radio(object):
     def list_radio_stations(self, buttons):
         screen_size = self._screen.getmaxyx()
 
-        if (buttons & curses_panel.BUTTON_UP) > 0:
+        if buttons == commands.CMD_UP:
             last_station = None
             for station in self._stations[self._page]:
                 if station.is_selected():
@@ -146,7 +147,7 @@ class Radio(object):
                         station.set_selected(False)
                     break
                 last_station = station
-        elif (buttons & curses_panel.BUTTON_DOWN) > 0:
+        elif buttons == commands.CMD_DOWN:
             last_station = None
             for station in self._stations[self._page]:
                 if not last_station is None:
@@ -164,12 +165,12 @@ class Radio(object):
                     self._page += 1
                 last_station.set_selected(False)
                 self._stations[self._page][0].set_selected(True)
-        elif (buttons & curses_panel.BUTTON_OK) > 0:
+        elif buttons == commands.CMD_SELECT:
             for station in self._stations[self._page]:
                 if station.is_selected():
                     self.play_station(station)
                     self._state = 3
-        elif (buttons & curses_panel.BUTTON_BACK) > 0:
+        elif buttons == commands.CMD_BACK:
             self.set_active(False)
             self._parent.set_active(True)
 
@@ -221,30 +222,30 @@ class Radio(object):
         else:
             song_name = ""
 
-        if (buttons & curses_panel.BUTTON_UP) > 0:
+        if buttons == commands.CMD_UP:
             self.volume_up(current_volume)
-        elif (buttons & curses_panel.BUTTON_DOWN) > 0:
+        elif buttons == commands.CMD_DOWN:
             self.volume_down(current_volume)
-        elif (buttons & curses_panel.BUTTON_PLAY) > 0:
+        elif buttons == commands.CMD_PLAY:
             self.start_playback()
-        elif (buttons & curses_panel.BUTTON_PAUSE) > 0:
+        elif buttons == commands.CMD_PAUSE:
             self.pause_playback()
-        elif (buttons & curses_panel.BUTTON_STOP) > 0:
+        elif buttons == commands.CMD_STOP:
             self.stop_playback()
-        elif (buttons & curses_panel.BUTTON_BACK) > 0:
+        elif buttons == commands.CMD_BACK:
             self._state = 0
-        elif (buttons & (curses_panel.BUTTON_LEFT | curses_panel.BUTTON_RIGHT)) > 0:
+        elif (buttons == commands.CMD_LEFT) | (buttons == commands.CMD_RIGHT):
             self._alt_display = self._alt_display ^ True
-        elif (buttons & curses_panel.BUTTON_Fn) > 0:
-            if (buttons & curses_panel.BUTTON_F1) > 0:
+        elif (buttons & commands.CMD_DSPSEL_MASK) == commands.CMD_DSPSEL_MASK:
+            if buttons == commands.CMD_DSPSEL1:
                 self._presets_buttondown_count[0] += 1
-            elif (buttons & curses_panel.BUTTON_F2) > 0:
+            elif buttons == commands.CMD_DSPSEL2:
                 self._presets_buttondown_count[1] += 1
-            elif (buttons & curses_panel.BUTTON_F3) > 0:
+            elif buttons == commands.CMD_DSPSEL3:
                 self._presets_buttondown_count[2] += 1
-            elif (buttons & curses_panel.BUTTON_F4) > 0:
+            elif buttons == commands.CMD_DSPSEL4:
                 self._presets_buttondown_count[3] += 1
-        elif (buttons & curses_panel.BUTTON_Fn) == 0:
+        elif (buttons & commands.CMD_DSPSEL_MASK) == 0:
             for i in range(0,4):
                 if self._presets_buttondown_count[i] > 50:
                     if playback_state == "play":

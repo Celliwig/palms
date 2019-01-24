@@ -3,6 +3,7 @@ import curses
 from .curses_panel import curses_panel
 from .mpdentity import MPDEntity
 from .ticker import Ticker
+from . import commands
 
 class DLNA(object):
     def __init__(self, home):
@@ -98,9 +99,9 @@ class DLNA(object):
             buttons = curses_panel.getbuttons(self._screen)
 
             # Handle over arching button events seperately
-            if (buttons & curses_panel.BUTTON_POWER) > 0:
+            if buttons == commands.CMD_POWER:
                 self._parent.set_poweroff(True)
-            elif (buttons & curses_panel.BUTTON_MENU) > 0:
+            elif buttons == commands.CMD_CDHD:
                 self.set_active(False)
                 self._parent.set_active(True)
 
@@ -126,7 +127,7 @@ class DLNA(object):
     def show_directory_contents(self, buttons):
         screen_size = self._screen.getmaxyx()
 
-        if (buttons & curses_panel.BUTTON_UP) > 0:
+        if buttons == commands.CMD_UP:
             last_dentry = None
             for dentry in self._directory_list[self._page]:
                 if dentry.is_selected():
@@ -144,7 +145,7 @@ class DLNA(object):
                         dentry.set_selected(False)
                     break
                 last_dentry = dentry
-        elif (buttons & curses_panel.BUTTON_DOWN) > 0:
+        elif buttons == commands.CMD_DOWN:
             last_dentry = None
             for dentry in self._directory_list[self._page]:
                 if not last_dentry is None:
@@ -162,7 +163,7 @@ class DLNA(object):
                     self._page += 1
                 last_dentry.set_selected(False)
                 self._directory_list[self._page][0].set_selected(True)
-        elif (buttons & curses_panel.BUTTON_OK) > 0:
+        elif buttons == commands.CMD_SELECT:
             for dentry in self._directory_list[self._page]:
                 if dentry.is_selected():
                      if dentry.is_directory():
@@ -171,11 +172,11 @@ class DLNA(object):
                          songid = self.generate_playlist()
                          self.start_playback(songid)
                          self._state = 1
-        elif (buttons & curses_panel.BUTTON_PLAY) > 0:
+        elif buttons == commands.CMD_PLAY:
              songid = self.generate_playlist()
              self.start_playback(songid)
              self._state = 1
-        elif (buttons & curses_panel.BUTTON_BACK) > 0:
+        elif buttons == commands.CMD_BACK:
              if len(self._paths) > 1:
                  self.move_out_directory()
              else:
@@ -238,35 +239,35 @@ class DLNA(object):
         else:
             song_title = ""
 
-        if (buttons & curses_panel.BUTTON_UP) > 0:
+        if buttons == commands.CMD_UP:
             self.volume_up(current_volume)
-        elif (buttons & curses_panel.BUTTON_DOWN) > 0:
+        elif buttons == commands.CMD_DOWN:
             self.volume_down(current_volume)
-        elif (buttons & curses_panel.BUTTON_PLAY) > 0:
+        elif buttons == commands.CMD_PLAY:
             self.start_playback()
-        elif (buttons & curses_panel.BUTTON_PAUSE) > 0:
+        elif buttons == commands.CMD_PAUSE:
             self.pause_playback()
-        elif (buttons & curses_panel.BUTTON_STOP) > 0:
+        elif buttons == commands.CMD_STOP:
             self.stop_playback()
-        elif (buttons & curses_panel.BUTTON_BACK) > 0:
+        elif buttons == commands.CMD_BACK:
             self._state = 0
-        elif (buttons & (curses_panel.BUTTON_LEFT | curses_panel.BUTTON_RIGHT)) > 0:
+        elif (buttons == commands.CMD_LEFT) | (buttons == commands.CMD_RIGHT):
             self._alt_display = self._alt_display ^ True
-        elif(buttons & curses_panel.BUTTON_REWIND) > 0:
+        elif buttons == commands.CMD_PREVIOUS:
             self.prev_playback()
-        elif(buttons & curses_panel.BUTTON_FORWARD) > 0:
+        elif buttons == commands.CMD_NEXT:
             self.next_playback()
 
-#        elif (buttons & curses_panel.BUTTON_Fn) > 0:
-#            if (buttons & curses_panel.BUTTON_F1) > 0:
+#        elif (buttons & commands.CMD_DSPSEL_MASK) == commands.CMD_DSPSEL_MASK:
+#            if buttons == commands.CMD_DSPSEL1:
 #                self._presets_buttondown_count[0] += 1
-#            elif (buttons & curses_panel.BUTTON_F2) > 0:
+#            elif buttons == commands.CMD_DSPSEL2:
 #                self._presets_buttondown_count[1] += 1
-#            elif (buttons & curses_panel.BUTTON_F3) > 0:
+#            elif buttons == commands.CMD_DSPSEL3:
 #                self._presets_buttondown_count[2] += 1
-#            elif (buttons & curses_panel.BUTTON_F4) > 0:
+#            elif buttons == commands.CMD_DSPSEL4:
 #                self._presets_buttondown_count[3] += 1
-#        elif (buttons & curses_panel.BUTTON_Fn) == 0:
+#        elif (buttons & commands.CMD_DSPSEL_MASK) == 0:
 #            for i in range(0,4):
 #                if self._presets_buttondown_count[i] > 50:
 #                    if playback_state == "play":

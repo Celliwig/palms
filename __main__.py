@@ -10,7 +10,7 @@ import sqlite3
 
 from . import *
 from .home import Home
-from .i2c_curses import curses_i2c
+#from .i2c_curses import curses_i2c
 
 def usage():
     print(USAGE % sys.argv[0])

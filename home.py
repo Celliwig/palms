@@ -1,5 +1,6 @@
 from __future__ import print_function
 import curses
+from . import commands
 from .curses_panel import curses_panel
 from .radio import Radio
 from .dlna import DLNA
@@ -70,9 +71,9 @@ class Home(object):
             buttons = curses_panel.getbuttons(self._screen)
 
             # Action button events
-            if (buttons & curses_panel.BUTTON_POWER) > 0:
+            if buttons == commands.CMD_POWER:
                 self._poweroff = True
-            elif (buttons & curses_panel.BUTTON_UP) > 0:
+            elif buttons == commands.CMD_UP:
                 last_control = None
                 for control in self._controls:
                     if control.is_selected():
@@ -81,7 +82,7 @@ class Home(object):
                             control.set_selected(False)
                             break
                     last_control = control
-            elif (buttons & curses_panel.BUTTON_DOWN) > 0:
+            elif buttons == commands.CMD_DOWN:
                 last_control = None
                 for control in self._controls:
                     if not last_control is None:
@@ -90,7 +91,7 @@ class Home(object):
                         break
                     if control.is_selected():
                         last_control = control
-            elif (buttons & curses_panel.BUTTON_OK) > 0:
+            elif (buttons & commands.CMD_SELECT) > 0:
                 for control in self._controls:
                     if control.is_selected():
                         self.set_active(False)
