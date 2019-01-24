@@ -4,7 +4,7 @@ import socket
 import threading
 import time
 
-class dlna_request_files(threading.Thread):
+class mpd_request_files(threading.Thread):
 
     def __init__(self, mpdc, path):
         threading.Thread.__init__(self)
@@ -21,7 +21,7 @@ class dlna_request_files(threading.Thread):
         while loop:
             try:
                 self._logger.debug("Requesting directory listing for /" + self._path)
-                self._directory_listing = self._mpd_client.listfiles(self._path)
+                self._directory_listing = self._mpd_client.lsinfo(self._path)
                 self._error = False
                 loop = False
             except socket.timeout:

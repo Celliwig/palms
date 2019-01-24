@@ -1,7 +1,7 @@
 from __future__ import print_function
 import logging
 from .radio import Radio
-from .dlna import DLNA
+from .browser import Browser
 from .usb import USB
 from .setup import Setup
 from . import commands
@@ -18,14 +18,14 @@ class Home(object):
         # Add widgets
         self._controls = []
         self._controls.append(Radio(self, conf, mpdc))
-        self._controls.append(DLNA(self))
+        self._controls.append(Browser(self))
         self._controls.append(USB(self))
         self._controls.append(Setup(self, conf, mpdc))
         # Select the first widget
         self._controls[0].set_selected(True)
 
         self._logger = logging.getLogger(__name__)
-        self._job = self._sched.add_job(self.io_handler, 'interval', seconds=0.1)
+        self._job = self._sched.add_job(self._io_handler, 'interval', seconds=0.1)
 
     def close(self):
         self._active = False
@@ -69,7 +69,7 @@ class Home(object):
     def set_poweroff(self, pwroff):
         self._poweroff = pwroff
 
-    def io_handler(self):
+    def _io_handler(self):
         self._logger.debug("Executing scheduled task.")
         # Pause job (stops lots of warnings)
         self._job.pause()

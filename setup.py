@@ -65,6 +65,18 @@ class Setup(object):
     def set_selected(self, val):
         self._selected = val
 
+# Set defaults if they don't exist
+#####################################################################################################
+    def _setup_set_defaults(self):
+        if not self._config.exists("mpd_source_dir"):
+            self._config.set("mpd_source_dir", "/var/lib/mpd/music/")	# Directory where music is stored
+        if not self._config.exists("mpd_source_net"):
+            self._config.set("mpd_source_net", False)			# Don't make a soft link to /media/network
+        if not self._config.exists("mpd_source_usb"):
+            self._config.set("mpd_source_usb", False)			# Don't make a soft link to /media/usb
+
+# Method called by the scheduler, proceeds based on current state
+#####################################################################################################
     def _io_handler(self):
         # Pause job (stops lots of warnings)
         self._job.pause()
@@ -101,16 +113,6 @@ class Setup(object):
         # Resume job (should probably put this in a mutex)
         if self.is_active():
             self._job.resume()
-
-# Set defaults
-#####################################################################################################
-    def _setup_set_defaults(self):
-        if not self._config.exists("mpd_source_dir"):
-            self._config.set("mpd_source_dir", "/var/lib/mpd/music/")	# Directory where music is stored
-        if not self._config.exists("mpd_source_net"):
-            self._config.set("mpd_source_net", False)			# Don't make a soft link to /media/network
-        if not self._config.exists("mpd_source_usb"):
-            self._config.set("mpd_source_usb", False)			# Don't make a soft link to /media/usb
 
 # List the configable items
 #####################################################################################################

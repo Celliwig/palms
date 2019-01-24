@@ -9,7 +9,7 @@ class USB(object):
         self._active = False
         self._selected = False
 
-        self._job = self._sched.add_job(self.io_handler, 'interval', seconds=0.1)
+        self._job = self._sched.add_job(self._io_handler, 'interval', seconds=0.1)
 
     def close(self):
         self._active = False
@@ -39,7 +39,7 @@ class USB(object):
     def set_selected(self, val):
         self._selected = val
 
-    def io_handler(self):
+    def _io_handler(self):
         # Pause job (stops lots of warnings)
         self._job.pause()
 
@@ -59,8 +59,8 @@ class USB(object):
 
             # Draw screen
             self._curses.get_screen().clear()
-            self._curses.get_screen().addstr(1,9,'Not')
-            self._curses.get_screen().addstr(2,4,'Implemented')
+            self._curses.get_screen().addstr(1,0,'Not'.center(20))
+            self._curses.get_screen().addstr(2,0,'Implemented'.center(20))
             self._curses.get_screen().refresh()
 
         # Resume job (should probably put this in a mutex)

@@ -30,16 +30,16 @@ class Radio(object):
         self._song_ticker = Ticker(20)
 
         # Create tables if necesary
-        self.create_tables()
+        self._create_tables()
 
         self._presets = None
         self._presets_buttondown_count = [ 0, 0, 0, 0 ]
-        self.load_presets()
+        self._load_presets()
         self._stations = None
-        self.load_stations()
+        self._load_stations()
 
         self._logger = logging.getLogger(__name__)
-        self._job = self._sched.add_job(self.io_handler, 'interval', seconds=0.1)
+        self._job = self._sched.add_job(self._io_handler, 'interval', seconds=0.1)
 
     def close(self):
         self._active = False
@@ -48,9 +48,9 @@ class Radio(object):
         for i in range(0,9):
             tmp_preset = self._presets[i]
             if tmp_preset is None:
-                self.del_preset(i)
+                self._del_preset(i)
             else:
-                self.set_preset(i, tmp_preset)
+                self._set_preset(i, tmp_preset)
 
     def __str__(self):
         return 'Radio(screen=%s)' % (self._curses.get_screen())
@@ -79,7 +79,7 @@ class Radio(object):
 
 # Method called by the scheduler, proceeds based on current state
 #####################################################################################################
-    def io_handler(self):
+    def _io_handler(self):
         self._logger.debug("Executing scheduled task")
         # Pause job (stops lots of warnings)
         self._job.pause()
@@ -119,7 +119,7 @@ class Radio(object):
                 if self._presets[0] is None:
                     self._state = Radio.RADIO_STATE_LIST_STATIONS
                 else:
-                    self.play_station(self._presets[0])
+                    self._play_station(self._presets[0])
                     self._state = Radio.RADIO_STATE_PLAYBACK
             # List radio stations
             elif (self._state == Radio.RADIO_STATE_LIST_STATIONS):
@@ -132,10 +132,10 @@ class Radio(object):
                                 self._page = tmp_page
                         tmp_page += 1
 
-                self.list_radio_stations(fp_command)
+                self._list_radio_stations(fp_command)
             # Station selected
             elif (self._state == Radio.RADIO_STATE_PLAYBACK):
-                self.show_stream_playback(fp_command)
+                self._show_stream_playback(fp_command)
 
         # Resume job (should probably put this in a mutex)
         if self.is_active():
@@ -143,7 +143,7 @@ class Radio(object):
 
 # Display a list of stored radio stations
 #####################################################################################################
-    def list_radio_stations(self, fp_command):
+    def _list_radio_stations(self, fp_command):
         screen_size = self._curses.get_screen().getmaxyx()
 
         # Check for a change of command
@@ -187,7 +187,7 @@ class Radio(object):
             elif fp_command == commands.CMD_SELECT:
                 for station in self._stations[self._page]:
                     if station.is_selected():
-                        self.play_station(station)
+                        self._play_station(station)
                         self._state = Radio.RADIO_STATE_PLAYBACK
             # Back button
             elif fp_command == commands.CMD_MODE:
@@ -216,7 +216,7 @@ class Radio(object):
 
 # Display playback information
 #####################################################################################################
-    def show_stream_playback(self, fp_command):
+    def _show_stream_playback(self, fp_command):
         screen_size = self._curses.get_screen().getmaxyx()
 
         mpd_status = self._mpd_client.status()
@@ -238,7 +238,7 @@ class Radio(object):
         mpd_songinfo = self._mpd_client.currentsong()
         if "name" in mpd_songinfo:
             song_station = mpd_songinfo["name"]
-            song_station = self.extract_station_name(song_station)
+            song_station = self._extract_station_name(song_station)
         else:
             song_station = ""
         if "title" in mpd_songinfo:
@@ -249,15 +249,15 @@ class Radio(object):
         # Check for a change of command
         if self._curses.has_command_changed():
             if fp_command == commands.CMD_UP:
-                self.volume_up(current_volume)
+                self._volume_up(current_volume)
             elif fp_command == commands.CMD_DOWN:
-                self.volume_down(current_volume)
+                self._volume_down(current_volume)
             elif fp_command == commands.CMD_PLAY:
-                self.start_playback()
+                self._start_playback()
             elif fp_command == commands.CMD_PAUSE:
-                self.pause_playback()
+                self._pause_playback()
             elif fp_command == commands.CMD_STOP:
-                self.stop_playback()
+                self._stop_playback()
             elif fp_command == commands.CMD_MODE:
                 self._state = Radio.RADIO_STATE_LIST_STATIONS
             elif (fp_command == commands.CMD_LEFT) | (fp_command == commands.CMD_RIGHT):
@@ -267,42 +267,42 @@ class Radio(object):
                 #self._logger.debug("IR remoted selected radio preset 1.")
                 tmp_preset = self._presets[1]
                 if not tmp_preset is None:
-                    self.play_station(tmp_preset)
+                    self._play_station(tmp_preset)
             elif fp_command == commands.CMD_2:
                 #self._logger.debug("IR remoted selected radio preset 2.")
                 tmp_preset = self._presets[2]
                 if not tmp_preset is None:
-                    self.play_station(tmp_preset)
+                    self._play_station(tmp_preset)
             elif fp_command == commands.CMD_3:
                 #self._logger.debug("IR remoted selected radio preset 3.")
                 tmp_preset = self._presets[3]
                 if not tmp_preset is None:
-                    self.play_station(tmp_preset)
+                    self._play_station(tmp_preset)
             elif fp_command == commands.CMD_4:
                 #self._logger.debug("IR remoted selected radio preset 4.")
                 tmp_preset = self._presets[4]
                 if not tmp_preset is None:
-                    self.play_station(tmp_preset)
+                    self._play_station(tmp_preset)
             elif fp_command == commands.CMD_5:
                 #self._logger.debug("IR remoted selected radio preset 5.")
                 tmp_preset = self._presets[5]
                 if not tmp_preset is None:
-                    self.play_station(tmp_preset)
+                    self._play_station(tmp_preset)
             elif fp_command == commands.CMD_6:
                 #self._logger.debug("IR remoted selected radio preset 6.")
                 tmp_preset = self._presets[6]
                 if not tmp_preset is None:
-                    self.play_station(tmp_preset)
+                    self._play_station(tmp_preset)
             elif fp_command == commands.CMD_7:
                 #self._logger.debug("IR remoted selected radio preset 7.")
                 tmp_preset = self._presets[7]
                 if not tmp_preset is None:
-                    self.play_station(tmp_preset)
+                    self._play_station(tmp_preset)
             elif fp_command == commands.CMD_8:
                 #self._logger.debug("IR remoted selected radio preset 8.")
                 tmp_preset = self._presets[8]
                 if not tmp_preset is None:
-                    self.play_station(tmp_preset)
+                    self._play_station(tmp_preset)
 
             # Handle preset selection, and saving
             elif (fp_command & commands.CMD_DSPSEL_MASK) == commands.CMD_DSPSEL_MASK:
@@ -364,7 +364,7 @@ class Radio(object):
                             tmp_preset = self._presets[i + 1]
 
                         if not tmp_preset is None:
-                            self.play_station(tmp_preset)
+                            self._play_station(tmp_preset)
                     self._presets_buttondown_count[i] = 0
 
         # Draw screen
@@ -406,52 +406,52 @@ class Radio(object):
 
 #####################################################################################################
 # MPD functions
-    def play_station(self, station):
+    def _play_station(self, station):
         if station.get_url() != self._current_station:
             self._current_station = station.get_url()
 
-            self.stop_playback()
+            self._stop_playback()
             self._mpd_client.clear()
             self._mpd_client.add(self._current_station)
-            self.start_playback()
+            self._start_playback()
 
-    def start_playback(self):
+    def _start_playback(self):
         self._mpd_client.play()
 
-    def pause_playback(self):
+    def _pause_playback(self):
         self._mpd_client.pause()
 
-    def stop_playback(self):
+    def _stop_playback(self):
         self._mpd_client.stop()
 
-    def volume_down(self, current_vol):
+    def _volume_down(self, current_vol):
         if current_vol > 0:
             current_vol -= 1
         self._mpd_client.setvol(current_vol)
 
-    def volume_up(self, current_vol):
+    def _volume_up(self, current_vol):
         if current_vol < 100:
             current_vol += 1
         self._mpd_client.setvol(current_vol)
 
-    def extract_station_name(self, station):
+    def _extract_station_name(self, station):
         return re.search('^([0-9A-Za-z ]+)', station).group(1)
 
 #####################################################################################################
 # SQL functions
-    def set_preset(self, preset, station):
+    def _set_preset(self, preset, station):
         sql_csr = self._config.get_sqlcon().cursor()
         sql_update = "REPLACE INTO radio_presets (preset, station_name, station_url) VALUES (\"" + str(preset) + "\", \"" + station.get_name() + "\", \"" + station.get_url() + "\")"
         sql_csr.execute(sql_update)
         self._config.get_sqlcon().commit()
 
-    def del_preset(self, preset):
+    def _del_preset(self, preset):
         sql_csr = self._config.get_sqlcon().cursor()
         sql_update = "DELETE FROM radio_presets WHERE preset=\"" + str(preset) + "\""
         sql_csr.execute(sql_update)
         self._config.get_sqlcon().commit()
 
-    def load_presets(self):
+    def _load_presets(self):
         presets = [ None, None, None, None, None, None, None, None, None ]
         sql_csr = self._config.get_sqlcon().cursor()
         sql_presets = "select preset, station_name, station_url from radio_presets"
@@ -462,19 +462,19 @@ class Radio(object):
             presets[tmp_preset[0]] = tmp_station
         self._presets = presets
 
-    def add_station(self, name, url):
+    def _add_station(self, name, url):
         sql_csr = self._config.get_sqlcon().cursor()
         sql_update = "INSERT INTO radio_stations (station_name, station_url) VALUES (\"" + name + "\", \"" + url + "\")"
         sql_csr.execute(sql_update)
         self._config.get_sqlcon().commit()
 
-    def del_station(self, name):
+    def _del_station(self, name):
         sql_csr = self._config.get_sqlcon().cursor()
         sql_update = "DELETE FROM radio_stations WHERE station_name=\"" + name + "\""
         sql_csr.execute(sql_update)
         self._config.get_sqlcon().commit()
 
-    def load_stations(self):
+    def _load_stations(self):
         stations = []
         sql_csr = self._config.get_sqlcon().cursor()
         sql_stations = "select station_name, station_url from radio_stations order by station_name"
@@ -487,7 +487,7 @@ class Radio(object):
             stations.append(tmp_station)
         self._stations = screen_utils.convert_2_pages(stations,8)
 
-    def create_tables(self):
+    def _create_tables(self):
         sql_csr = self._config.get_sqlcon().cursor()
 
         # Check if table exist
@@ -512,43 +512,43 @@ class Radio(object):
 
             # Add some stations
             # SomaFM
-            self.add_station("Jolly Ol' Soul", "http://ice.somafm.com/jollysoul")
-            self.add_station("Xmas in Frisko", "http://ice.somafm.com/xmasinfrisko")
-            self.add_station("Christmas Rocks!", "http://ice.somafm.com/xmasrocks")
-            self.add_station("Christmas Lounge", "http://ice.somafm.com/christmas")
-            self.add_station("SF in SF", "http://ice.somafm.com/sfinsf")
-            self.add_station("PopTron", "http://ice.somafm.com/poptron")
-            self.add_station("BAGeL Radio", "http://ice.somafm.com/bagel")
-            self.add_station("Seven Inch Soul", "http://ice.somafm.com/7soul")
-            self.add_station("Beat Blender", "http://ice.somafm.com/beatblender")
-            self.add_station("The Trip", "http://ice.somafm.com/thetrip")
-            self.add_station("cliqhop idm", "http://ice.somafm.com/cliqhop")
-            self.add_station("Dub Step Beyond", "http://ice.somafm.com/dubstep")
-            self.add_station("ThistleRadio", "http://ice.somafm.com/thistle")
-            self.add_station("Folk Forward", "http://ice.somafm.com/folkfwd")
-            self.add_station("Covers", "http://ice.somafm.com/covers")
-            self.add_station("Doomed", "http://ice.somafm.com/doomed")
-            self.add_station("Secret Agent", "http://ice.somafm.com/secretagent")
-            self.add_station("Groove Salad", "http://ice.somafm.com/groovesalad")
-            self.add_station("Drone Zone", "http://ice.somafm.com/dronezone")
-            self.add_station("Fluid", "http://ice.somafm.com/fluid")
-            self.add_station("Lush", "http://ice.somafm.com/lush")
-            self.add_station("Illinois Street Lounge", "http://ice.somafm.com/illstreet")
-            self.add_station("Indie Pop Rocks!", "http://ice.somafm.com/indiepop")
-            self.add_station("Left Coast 70s", "http://ice.somafm.com/seventies")
-            self.add_station("Underground 80s", "http://ice.somafm.com/u80s")
-            self.add_station("Boot Liquor", "http://ice.somafm.com/bootliquor")
-            self.add_station("Digitalis", "http://ice.somafm.com/digitalis")
-            self.add_station("Metal Detector", "http://ice.somafm.com/metal")
-            self.add_station("Mission Control", "http://ice.somafm.com/missioncontrol")
-            self.add_station("SF 10-33", "http://ice.somafm.com/sf1033")
-            self.add_station("Deep Space One", "http://ice.somafm.com/deepspaceone")
-            self.add_station("Space Station Soma", "http://ice.somafm.com/spacestation")
-            self.add_station("Sonic Universe", "http://ice.somafm.com/sonicuniverse")
-            self.add_station("Suburbs of Goa", "http://ice.somafm.com/suburbsofgoa")
-            self.add_station("Black Rock FM", "http://ice.somafm.com/brfm")
-            self.add_station("DEF CON Radio", "http://ice.somafm.com/defcon")
-            self.add_station("Earwaves", "http://sfstream1.somafm.com:5100")
-            self.add_station("The Silent Channel", "http://ice.somafm.com/silent")
+            self._add_station("Jolly Ol' Soul", "http://ice.somafm.com/jollysoul")
+            self._add_station("Xmas in Frisko", "http://ice.somafm.com/xmasinfrisko")
+            self._add_station("Christmas Rocks!", "http://ice.somafm.com/xmasrocks")
+            self._add_station("Christmas Lounge", "http://ice.somafm.com/christmas")
+            self._add_station("SF in SF", "http://ice.somafm.com/sfinsf")
+            self._add_station("PopTron", "http://ice.somafm.com/poptron")
+            self._add_station("BAGeL Radio", "http://ice.somafm.com/bagel")
+            self._add_station("Seven Inch Soul", "http://ice.somafm.com/7soul")
+            self._add_station("Beat Blender", "http://ice.somafm.com/beatblender")
+            self._add_station("The Trip", "http://ice.somafm.com/thetrip")
+            self._add_station("cliqhop idm", "http://ice.somafm.com/cliqhop")
+            self._add_station("Dub Step Beyond", "http://ice.somafm.com/dubstep")
+            self._add_station("ThistleRadio", "http://ice.somafm.com/thistle")
+            self._add_station("Folk Forward", "http://ice.somafm.com/folkfwd")
+            self._add_station("Covers", "http://ice.somafm.com/covers")
+            self._add_station("Doomed", "http://ice.somafm.com/doomed")
+            self._add_station("Secret Agent", "http://ice.somafm.com/secretagent")
+            self._add_station("Groove Salad", "http://ice.somafm.com/groovesalad")
+            self._add_station("Drone Zone", "http://ice.somafm.com/dronezone")
+            self._add_station("Fluid", "http://ice.somafm.com/fluid")
+            self._add_station("Lush", "http://ice.somafm.com/lush")
+            self._add_station("Illinois Street Lounge", "http://ice.somafm.com/illstreet")
+            self._add_station("Indie Pop Rocks!", "http://ice.somafm.com/indiepop")
+            self._add_station("Left Coast 70s", "http://ice.somafm.com/seventies")
+            self._add_station("Underground 80s", "http://ice.somafm.com/u80s")
+            self._add_station("Boot Liquor", "http://ice.somafm.com/bootliquor")
+            self._add_station("Digitalis", "http://ice.somafm.com/digitalis")
+            self._add_station("Metal Detector", "http://ice.somafm.com/metal")
+            self._add_station("Mission Control", "http://ice.somafm.com/missioncontrol")
+            self._add_station("SF 10-33", "http://ice.somafm.com/sf1033")
+            self._add_station("Deep Space One", "http://ice.somafm.com/deepspaceone")
+            self._add_station("Space Station Soma", "http://ice.somafm.com/spacestation")
+            self._add_station("Sonic Universe", "http://ice.somafm.com/sonicuniverse")
+            self._add_station("Suburbs of Goa", "http://ice.somafm.com/suburbsofgoa")
+            self._add_station("Black Rock FM", "http://ice.somafm.com/brfm")
+            self._add_station("DEF CON Radio", "http://ice.somafm.com/defcon")
+            self._add_station("Earwaves", "http://sfstream1.somafm.com:5100")
+            self._add_station("The Silent Channel", "http://ice.somafm.com/silent")
             # FolkAlley
-            self.add_station("Folk Alley", "https://stream.wksu.org/wksu2.mp3.128")
+            self._add_station("Folk Alley", "https://stream.wksu.org/wksu2.mp3.128")

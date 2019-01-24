@@ -1,15 +1,15 @@
 from __future__ import print_function
 import logging
-from .dlna_request_files import *
+from .mpd_request_files import *
 from .mpdentity import MPDEntity
 from .screen_utils import *
 from .ticker import Ticker
 from . import commands
 
-class DLNA(object):
-    DLNA_STATE_INIT = 0
-    DLNA_STATE_SHOW_DIR = 1
-    DLNA_STATE_PLAYBACK = 2
+class Browser(object):
+    BROWSER_STATE_INIT = 0
+    BROWSER_STATE_SHOW_DIR = 1
+    BROWSER_STATE_PLAYBACK = 2
 
     def __init__(self, home):
         self._parent = home
@@ -17,7 +17,7 @@ class DLNA(object):
         self._sched = home.get_scheduler()
         self._active = False
         self._selected = False
-        self._state = DLNA.DLNA_STATE_INIT
+        self._state = Browser.BROWSER_STATE_INIT
 
         self._paths = []
         self._directory_list = None
@@ -36,13 +36,13 @@ class DLNA(object):
         self._active = False
 
     def __str__(self):
-        return 'DLNA(screen=%s)' % (self._curses.get_screen())
+        return 'Browser(screen=%s)' % (self._curses.get_screen())
 
     def __repr__(self):
         return str(self)
 
     def control_name(self):
-        return "DLNA"
+        return "Browser"
 
     def is_active(self):
         return self._active
@@ -56,6 +56,8 @@ class DLNA(object):
     def set_selected(self, val):
         self._selected = val
 
+# Method called by the scheduler, proceeds based on current state
+#####################################################################################################
     def io_handler_main(self):
         self._logger.debug("Executing scheduled main task")
         # Pause job (stops lots of warnings)
@@ -64,6 +66,7 @@ class DLNA(object):
         # Get button presses
         if self.is_active():
             fp_command = self._curses.get_command()
+            self._logger.debug("Currnet command: " + str(fp_command))
 
             # Handle over arching button events seperately
             if fp_command == commands.CMD_POWER:
@@ -81,25 +84,25 @@ class DLNA(object):
                         dlist = []
                         for item in self._request_thread.get_directory_list():
                             tmp_mpde = MPDEntity(item, self._request_thread.get_path())
-                            if len(dlist) == 0:
-                                tmp_mpde.set_selected(True)
                             dlist.append(tmp_mpde)
                         if len(dlist) == 0:
                             dlist.append(MPDEntity({ "Error": "N/A" }, ""))
+                        dlist.sort()
+                        dlist[0].set_selected(True)
                         self._directory_list = screen_utils.convert_2_pages(dlist, 8)
                         self._page = 0
                         self._request_thread = None
 
             # Actions are dependent on machine state
             # No state
-            if self._state == DLNA.DLNA_STATE_INIT:
+            if self._state == Browser.BROWSER_STATE_INIT:
                 self.move_into_directory("")
-                self._state = DLNA.DLNA_STATE_SHOW_DIR
+                self._state = Browser.BROWSER_STATE_SHOW_DIR
             # show current directory contents
-            elif (self._state == DLNA.DLNA_STATE_SHOW_DIR):
+            elif (self._state == Browser.BROWSER_STATE_SHOW_DIR):
                 self.show_directory_contents(fp_command)
             # Show stream playback
-            elif (self._state == DLNA.DLNA_STATE_PLAYBACK):
+            elif (self._state == Browser.BROWSER_STATE_PLAYBACK):
                 self.show_stream_playback(fp_command)
 
         # Resume job
@@ -155,11 +158,11 @@ class DLNA(object):
                         if dentry.is_file():
                             songid = self.generate_playlist()
                             self.start_playback(songid)
-                            self._state = DLNA.DLNA_STATE_PLAYBACK
+                            self._state = Browser.BROWSER_STATE_PLAYBACK
             elif fp_command == commands.CMD_PLAY:
                 songid = self.generate_playlist()
                 self.start_playback(songid)
-                self._state = DLNA.DLNA_STATE_PLAYBACK
+                self._state = Browser.BROWSER_STATE_PLAYBACK
             elif fp_command == commands.CMD_MODE:
                 if len(self._paths) > 1:
                     self.move_out_directory()
@@ -254,7 +257,7 @@ class DLNA(object):
         elif fp_command == commands.CMD_STOP:
             self.stop_playback()
         elif fp_command == commands.CMD_MODE:
-            self._state = DLNA.DLNA_STATE_SHOW_DIR
+            self._state = Browser.BROWSER_STATE_SHOW_DIR
         elif (fp_command == commands.CMD_LEFT) | (fp_command == commands.CMD_RIGHT):
             self._alt_display = self._alt_display ^ True
         elif fp_command == commands.CMD_PREVIOUS:
@@ -322,7 +325,7 @@ class DLNA(object):
         self._curses.get_screen().refresh()
 
 #####################################################################################################
-# DLNA functions
+# Browser functions
     def move_into_directory(self, path):
         self._paths.append(path)
         self.get_directory_list(self._paths[-1])
@@ -332,15 +335,15 @@ class DLNA(object):
         self.get_directory_list(self._paths[-1])
 
     def get_directory_list(self, path):
-        self._request_thread = dlna_request_files(self._parent.get_MPDclient(), path)
+        self._request_thread = mpd_request_files(self._parent.get_MPDclient(), path)
         self._request_thread.start()
 
     def generate_playlist(self):
         selected_dentry = None
         # First find what is selected
-        for dentry_page in self._directory_list:
-            for dentry in dentry_page:
-                 selected_dentry = dentry
+        for dentry in self._directory_list[self._page]:
+            if dentry.is_selected():
+                selected_dentry = dentry
 
         mpd_client = self._parent.get_MPDclient()
         mpd_client.clear()
@@ -387,122 +390,3 @@ class DLNA(object):
         if current_vol < 100:
             current_vol += 1
         self._parent.get_MPDclient().setvol(current_vol)
-
-######################################################################################################
-## SQL functions
-#    def set_preset(self, preset, name, url):
-#        sql_csr = self._parent.get_sqlcon().cursor()
-#        sql_update = "REPLACE INTO radio_presets (preset, station_name, station_url) VALUES (\"" + str(preset) + "\", \"" + name + "\", \"" + url + "\")"
-#        sql_csr.execute(sql_update)
-#        self._parent.get_sqlcon().commit()
-#
-#    def del_preset(self, preset):
-#        sql_csr = self._parent.get_sqlcon().cursor()
-#        sql_update = "DELETE FROM radio_presets WHERE preset=\"" + str(preset) + "\""
-#        sql_csr.execute(sql_update)
-#        self._parent.get_sqlcon().commit()
-#
-#    def load_presets(self):
-#        presets = [ None, None, None, None, None ]
-#        sql_csr = self._parent.get_sqlcon().cursor()
-#        sql_presets = "select preset, station_name, station_url from radio_presets"
-#        sql_csr.execute(sql_presets)
-#        rows = sql_csr.fetchall()
-#        for tmp_preset in rows:
-#            tmp_station = {}
-#            tmp_station["name"] = tmp_preset[1]
-#            tmp_station["url"] = tmp_preset[2]
-#            presets[tmp_preset[0]] = tmp_station
-#        self._presets = presets
-#
-#    def add_station(self, name, url):
-#        sql_csr = self._parent.get_sqlcon().cursor()
-#        sql_update = "INSERT INTO radio_stations (station_name, station_url) VALUES (\"" + name + "\", \"" + url + "\")"
-#        sql_csr.execute(sql_update)
-#        self._parent.get_sqlcon().commit()
-#
-#    def del_station(self, name):
-#        sql_csr = self._parent.get_sqlcon().cursor()
-#        sql_update = "DELETE FROM radio_stations WHERE station_name=\"" + name + "\""
-#        sql_csr.execute(sql_update)
-#        self._parent.get_sqlcon().commit()
-#
-#    def load_stations(self):
-#        stations = []
-#        sql_csr = self._parent.get_sqlcon().cursor()
-#        sql_stations = "select station_name, station_url from radio_stations order by station_name"
-#        sql_csr.execute(sql_stations)
-#        rows = sql_csr.fetchall()
-#        for tmp_station in rows:
-#            tmp_entry = {}
-#            tmp_entry['name'] = tmp_station[0]
-#            tmp_entry['url'] = tmp_station[1]
-#            if len(stations) == 0:
-#                tmp_entry['selected'] = True
-#            else:
-#                tmp_entry['selected'] = False
-#            stations.append(tmp_entry)
-#        self._stations = stations
-#
-#    def create_tables(self):
-#        sql_csr = self._parent.get_sqlcon().cursor()
-#
-#        # Check if table exist
-#        sql_table_check = "SELECT name FROM sqlite_master WHERE type='table' AND name='radio_presets';"
-#        sql_csr.execute(sql_table_check)
-#        table_exists = sql_csr.fetchone()
-#
-#        if table_exists is None:
-#            sql_table_create = "CREATE TABLE radio_presets (preset INTEGER PRIMARY KEY, station_name TEXT, station_url TEXT)"
-#            sql_csr.execute(sql_table_create)
-#            self._parent.get_sqlcon().commit()
-#
-#        # Check if table exist
-#        sql_table_check = "SELECT name FROM sqlite_master WHERE type='table' AND name='radio_stations';"
-#        sql_csr.execute(sql_table_check)
-#        table_exists = sql_csr.fetchone()
-#
-#        if table_exists is None:
-#            sql_table_create = "CREATE TABLE radio_stations (station_name TEXT, station_url TEXT)"
-#            sql_csr.execute(sql_table_create)
-#            self._parent.get_sqlcon().commit()
-#
-#            # Add some stations
-#            self.add_station("Jolly Ol' Soul", "http://ice.somafm.com/jollysoul")
-#            self.add_station("Xmas in Frisko", "http://ice.somafm.com/xmasinfrisko")
-#            self.add_station("Christmas Rocks!", "http://ice.somafm.com/xmasrocks")
-#            self.add_station("Christmas Lounge", "http://ice.somafm.com/christmas")
-#            self.add_station("SF in SF", "http://ice.somafm.com/sfinsf")
-#            self.add_station("PopTron", "http://ice.somafm.com/poptron")
-#            self.add_station("BAGeL Radio", "http://ice.somafm.com/bagel")
-#            self.add_station("Seven Inch Soul", "http://ice.somafm.com/7soul")
-#            self.add_station("Beat Blender", "http://ice.somafm.com/beatblender")
-#            self.add_station("The Trip", "http://ice.somafm.com/thetrip")
-#            self.add_station("cliqhop idm", "http://ice.somafm.com/cliqhop")
-#            self.add_station("Dub Step Beyond", "http://ice.somafm.com/dubstep")
-#            self.add_station("ThistleRadio", "http://ice.somafm.com/thistle")
-#            self.add_station("Folk Forward", "http://ice.somafm.com/folkfwd")
-#            self.add_station("Covers", "http://ice.somafm.com/covers")
-#            self.add_station("Doomed", "http://ice.somafm.com/doomed")
-#            self.add_station("Secret Agent", "http://ice.somafm.com/secretagent")
-#            self.add_station("Groove Salad", "http://ice.somafm.com/groovesalad")
-#            self.add_station("Drone Zone", "http://ice.somafm.com/dronezone")
-#            self.add_station("Fluid", "http://ice.somafm.com/fluid")
-#            self.add_station("Lush", "http://ice.somafm.com/lush")
-#            self.add_station("Illinois Street Lounge", "http://ice.somafm.com/illstreet")
-#            self.add_station("Indie Pop Rocks!", "http://ice.somafm.com/indiepop")
-#            self.add_station("Left Coast 70s", "http://ice.somafm.com/seventies")
-#            self.add_station("Underground 80s", "http://ice.somafm.com/u80s")
-#            self.add_station("Boot Liquor", "http://ice.somafm.com/bootliquor")
-#            self.add_station("Digitalis", "http://ice.somafm.com/digitalis")
-#            self.add_station("Metal Detector", "http://ice.somafm.com/metal")
-#            self.add_station("Mission Control", "http://ice.somafm.com/missioncontrol")
-#            self.add_station("SF 10-33", "http://ice.somafm.com/sf1033")
-#            self.add_station("Deep Space One", "http://ice.somafm.com/deepspaceone")
-#            self.add_station("Space Station Soma", "http://ice.somafm.com/spacestation")
-#            self.add_station("Sonic Universe", "http://ice.somafm.com/sonicuniverse")
-#            self.add_station("Suburbs of Goa", "http://ice.somafm.com/suburbsofgoa")
-#            self.add_station("Black Rock FM", "http://ice.somafm.com/brfm")
-#            self.add_station("DEF CON Radio", "http://ice.somafm.com/defcon")
-#            self.add_station("Earwaves", "http://sfstream1.somafm.com:5100")
-#            self.add_station("The Silent Channel", "http://ice.somafm.com/silent")

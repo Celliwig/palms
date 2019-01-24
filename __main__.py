@@ -33,6 +33,7 @@ def main():
     parser.add_argument("--mpd_socket",default=MPD_default_socket_path,help="Specify the path to the MPD server socket (default): " + MPD_default_socket_path)
     parser.add_argument("--user",default="palms",help="User to run as.")
     parser.add_argument("--loglevel",default="INFO",help="Level to log at. Should be one of DEBUG/INFO/WARNING/ERROR/CRITICAL.")
+    parser.add_argument("--debug",default="",help="Comma seperated list of modules to enable debugging for.")
     args = parser.parse_args()
 
     # Are we running as root?
@@ -109,6 +110,25 @@ def main():
     # Reduce the log level of libraries
     logging.getLogger("apscheduler").setLevel(logging.WARNING)
     logging.getLogger("mpd").setLevel(logging.WARNING)
+
+    # Reduce the log level of module except the ones we are interested in
+    debug_modules = args.debug.split(',')
+    if not "main" in debug_modules:
+        logging.getLogger("__main__").setLevel(logging.INFO)
+    if not "browser" in debug_modules:
+        logging.getLogger("palms.browser").setLevel(logging.INFO)
+    if not "config" in debug_modules:
+        logging.getLogger("palms.config").setLevel(logging.INFO)
+    if not "curses_wrapper" in debug_modules:
+        logging.getLogger("palms.curses_wrapper").setLevel(logging.INFO)
+    if not "home" in debug_modules:
+        logging.getLogger("palms.home").setLevel(logging.INFO)
+    if not "mpd_request_files" in debug_modules:
+        logging.getLogger("palms.mpd_request_files").setLevel(logging.INFO)
+    if not "radio" in debug_modules:
+        logging.getLogger("palms.radio").setLevel(logging.INFO)
+    if not "ticker" in debug_modules:
+        logging.getLogger("palms.ticker").setLevel(logging.INFO)
 
     # Setup connection tp MPD Server
     logger.debug("Preparing to connect to MPD daemon using socket: " + MPD_default_socket_path)
