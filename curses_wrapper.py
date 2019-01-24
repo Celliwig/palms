@@ -1,7 +1,14 @@
+#############################################################################
+#
+# This is a wrapper class to allow the either the device specific driver to
+# used, or the command line curses library to be used
+#
+#############################################################################
+
 import curses
 from . import commands
 
-class curses_panel(object):
+class curses_wrapper(object):
 
     def getbuttons(screen):
         if screen.__class__.__name__ == 'curses window':
@@ -39,16 +46,17 @@ class curses_panel(object):
             elif key == ord('4'):
                 rtn = rtn | commands.CMD_PREVIOUS
             elif key == ord('5'):
-                rtn = rtn | commands.CMD_BACK
+                rtn = rtn | commands.CMD_MODE
             elif key == ord('6'):
                 rtn = rtn | commands.CMD_NEXT
             elif key == curses.KEY_F12:
                 rtn = rtn | commands.CMD_POWER
 
             return rtn
-        elif screen.__class__.__name__ == 'curses_i2c':
-            return 0;
+        elif screen.__class__.__name__ == 'dev_panel':
+            return screen.getbuttons();
         else:
+            print(screen.__class__.__name__)
             return 0;
 
     def convert_2_pages(item_list, page_length):
