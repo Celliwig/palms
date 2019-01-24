@@ -2,18 +2,23 @@ from __future__ import print_function
 import curses
 import re
 from .curses_wrapper import curses_wrapper
+from .screen_utils import *
 from .station import Station
 from .ticker import Ticker
 from . import commands
 
 class Radio(object):
+    RADIO_STATE_INIT = 0					# Start playback of previously selected station, or display station list
+    RADIO_STATE_LIST_STATIONS = 1				# Display station list
+    RADIO_STATE_PLAYBACK = 2					# Show playback of station
+
     def __init__(self, home):
         self._parent = home
-        self._screen = home.get_screen()
+        self._curses = home.get_curses()
         self._sched = home.get_scheduler()
         self._active = False
         self._selected = False
-        self._state = -1
+        self._state = Radio.RADIO_STATE_INIT
         self._current_station = ""
         self._page = -1
         self._alt_display = False
@@ -35,6 +40,7 @@ class Radio(object):
     def close(self):
         self._active = False
 
+        # Save preset configuration
         for i in range(0,5):
             tmp_preset = self._presets[i]
             if tmp_preset is None:
@@ -43,7 +49,7 @@ class Radio(object):
                 self.set_preset(i, tmp_preset)
 
     def __str__(self):
-        return 'Radio(screen=%s)' % (self._screen)
+        return 'Radio(screen=%s)' % (self._curses.get_screen())
 
     def __repr__(self):
         return str(self)
@@ -56,6 +62,10 @@ class Radio(object):
 
     def set_active(self, act):
         self._active = act
+        if act:
+            self._job.resume()
+        else:
+            self._job.pause()
 
     def is_selected(self):
         return self._selected
@@ -63,6 +73,8 @@ class Radio(object):
     def set_selected(self, val):
         self._selected = val
 
+# Method called by the scheduler, proceeds based on current state
+#####################################################################################################
     def io_handler(self):
         # Pause job (stops lots of warnings)
         self._job.pause()
@@ -70,38 +82,42 @@ class Radio(object):
         # Get button presses
         if self.is_active():
             self._parent.get_MPDclient().ping()
-            buttons = curses_wrapper.getbuttons(self._screen)
+            buttons = self._curses.get_command()
 
-            # Handle over arching button events seperately
-            if buttons == commands.CMD_POWER:
-                # Save the current station as default if playing
-                mpd_status = self._parent.get_MPDclient().status()
-                playback_state = mpd_status["state"]
-                if playback_state == "play":
-                    if not self._current_station == '':
-                        tmp_station = Station("default", self._current_station)
-                        self._presets[0] = tmp_station
-                else:
-                    # Clear default station only if at some point we have started playback of a radio station
-                    if not self._current_station == '':
-                        self._presets[0] = None
+            # Check for a change of command
+            if self._curses.has_command_changed():
+                # Handle over arching button events seperately
+                if buttons == commands.CMD_POWER:
+                    # Save the current station as default if playing
+                    mpd_status = self._parent.get_MPDclient().status()
+                    playback_state = mpd_status["state"]
+                    if playback_state == "play":
+                        if not self._current_station == '':
+                            tmp_station = Station("default", self._current_station)
+                            self._presets[0] = tmp_station
+                    else:
+                        # Clear default station only if at some point we have started playback of a radio station
+                        if not self._current_station == '':
+                            self._presets[0] = None
 
-                self._parent.set_poweroff(True)
-            elif buttons == commands.CMD_CDHD:
-                self.set_active(False)
-                self._parent.set_active(True)
+                    self._parent.set_poweroff(True)
+
+                # Home button
+                elif buttons == commands.CMD_CDHD:
+                    self.set_active(False)
+                    self._parent.set_active(True)
 
             # Actions are dependent on machine state
-            # No state
-            if self._state == -1:
+            # Init
+            if self._state == Radio.RADIO_STATE_INIT:
                 # Check to see if there is a default station, otherwise just list
                 if self._presets[0] is None:
-                    self._state = 0
+                    self._state = Radio.RADIO_STATE_LIST_STATIONS
                 else:
                     self.play_station(self._presets[0])
-                    self._state = 3
+                    self._state = Radio.RADIO_STATE_PLAYBACK
             # List radio stations
-            elif (self._state == 0):
+            elif (self._state == Radio.RADIO_STATE_LIST_STATIONS):
                 # Set the display start
                 if self._page == -1:
                     tmp_page = 0
@@ -112,71 +128,69 @@ class Radio(object):
                         tmp_page += 1
 
                 self.list_radio_stations(buttons)
-#            # Add radio station
-#            elif (self._state == 1):
-#            # Remove radio station
-#            elif (self._state == 2):
             # Station selected
-            elif (self._state == 3):
+            elif (self._state == Radio.RADIO_STATE_PLAYBACK):
                 self.show_stream_playback(buttons)
-#            # We shouldn't get here
-#            else
 
-        # Resume job
-        self._job.resume()
+        # Resume job (should probably put this in a mutex)
+        if self.is_active():
+            self._job.resume()
 
+# Display a list of stored radio stations
 #####################################################################################################
-# I/O routines
     def list_radio_stations(self, buttons):
-        screen_size = self._screen.getmaxyx()
+        screen_size = self._curses.get_screen().getmaxyx()
 
-        if buttons == commands.CMD_UP:
-            last_station = None
-            for station in self._stations[self._page]:
-                if station.is_selected():
-                    if last_station is None:
-                        # Check there's another page
-                        if self._page == 0:
-                            self._page = len(self._stations) - 1
+        # Check for a change of command
+        if self._curses.has_command_changed():
+            if buttons == commands.CMD_UP:
+                last_station = None
+                for station in self._stations[self._page]:
+                    if station.is_selected():
+                        if last_station is None:
+                            # Check there's another page
+                            if self._page == 0:
+                                self._page = len(self._stations) - 1
+                            else:
+                                self._page -= 1
+                            station.set_selected(False)
+                            tmp_stations = self._stations[self._page]
+                            tmp_stations[len(tmp_stations) - 1].set_selected(True)
                         else:
-                            self._page -= 1
-                        station.set_selected(False)
-                        tmp_stations = self._stations[self._page]
-                        tmp_stations[len(tmp_stations) - 1].set_selected(True)
-                    else:
-                        last_station.set_selected(True)
-                        station.set_selected(False)
-                    break
-                last_station = station
-        elif buttons == commands.CMD_DOWN:
-            last_station = None
-            for station in self._stations[self._page]:
-                if not last_station is None:
-                    last_station.set_selected(False)
-                    station.set_selected(True)
-                    break
-                if station.is_selected():
+                            last_station.set_selected(True)
+                            station.set_selected(False)
+                        break
                     last_station = station
-            # We've reached the end of the page
-            if last_station.is_selected():
-                # Check there's another page
-                if len(self._stations) == (self._page + 1):
-                    self._page = 0
-                else:
-                    self._page += 1
-                last_station.set_selected(False)
-                self._stations[self._page][0].set_selected(True)
-        elif buttons == commands.CMD_SELECT:
-            for station in self._stations[self._page]:
-                if station.is_selected():
-                    self.play_station(station)
-                    self._state = 3
-        elif buttons == commands.CMD_MODE:
-            self.set_active(False)
-            self._parent.set_active(True)
+            elif buttons == commands.CMD_DOWN:
+                last_station = None
+                for station in self._stations[self._page]:
+                    if not last_station is None:
+                        last_station.set_selected(False)
+                        station.set_selected(True)
+                        break
+                    if station.is_selected():
+                        last_station = station
+                # We've reached the end of the page
+                if last_station.is_selected():
+                    # Check there's another page
+                    if len(self._stations) == (self._page + 1):
+                        self._page = 0
+                    else:
+                        self._page += 1
+                    last_station.set_selected(False)
+                    self._stations[self._page][0].set_selected(True)
+            elif buttons == commands.CMD_SELECT:
+                for station in self._stations[self._page]:
+                    if station.is_selected():
+                        self.play_station(station)
+                        self._state = Radio.RADIO_STATE_PLAYBACK
+            # Back button
+            elif buttons == commands.CMD_MODE:
+                self.set_active(False)
+                self._parent.set_active(True)
 
         # Draw screen
-        self._screen.clear()
+        self._curses.get_screen().clear()
         station_count = 0
         screen_line_num = 0
         screen_row_offset = 0
@@ -185,18 +199,20 @@ class Radio(object):
                 screen_line_num = 0
                 screen_row_offset = 11
             if station.is_selected():
-                self._screen.addch(screen_line_num,screen_row_offset,'>')
+                self._curses.get_screen().addch(screen_line_num,screen_row_offset,'>')
             else:
-                self._screen.addch(screen_line_num,screen_row_offset,' ')
-            self._screen.addstr(station.get_ticker_txt())
+                self._curses.get_screen().addch(screen_line_num,screen_row_offset,' ')
+            self._curses.get_screen().addstr(station.get_ticker_txt())
             station.pulse()
             screen_line_num += 1
             station_count += 1
 
-        self._screen.refresh()
+        self._curses.get_screen().refresh()
 
+# Display playback information
+#####################################################################################################
     def show_stream_playback(self, buttons):
-        screen_size = self._screen.getmaxyx()
+        screen_size = self._curses.get_screen().getmaxyx()
 
         mpd_status = self._parent.get_MPDclient().status()
         current_volume = int(mpd_status["volume"])
@@ -225,49 +241,69 @@ class Radio(object):
         else:
             song_name = ""
 
-        if buttons == commands.CMD_UP:
-            self.volume_up(current_volume)
-        elif buttons == commands.CMD_DOWN:
-            self.volume_down(current_volume)
-        elif buttons == commands.CMD_PLAY:
-            self.start_playback()
-        elif buttons == commands.CMD_PAUSE:
-            self.pause_playback()
-        elif buttons == commands.CMD_STOP:
-            self.stop_playback()
-        elif buttons == commands.CMD_MODE:
-            self._state = 0
-        elif (buttons == commands.CMD_LEFT) | (buttons == commands.CMD_RIGHT):
-            self._alt_display = self._alt_display ^ True
-        elif (buttons & commands.CMD_DSPSEL_MASK) == commands.CMD_DSPSEL_MASK:
-            if buttons == commands.CMD_DSPSEL1:
-                self._presets_buttondown_count[0] += 1
-            elif buttons == commands.CMD_DSPSEL2:
-                self._presets_buttondown_count[1] += 1
-            elif buttons == commands.CMD_DSPSEL3:
-                self._presets_buttondown_count[2] += 1
-            elif buttons == commands.CMD_DSPSEL4:
-                self._presets_buttondown_count[3] += 1
-        elif (buttons & commands.CMD_DSPSEL_MASK) == 0:
-            for i in range(0,4):
-                if self._presets_buttondown_count[i] > 50:
-                    if playback_state == "play":
-                        for station in self._stations[self._page]:
-                            if station.is_selected():
-                                self._presets[i + 1] = station
-                    else:
-                        self._presets[i + 1] = None
-                # There's some 'bounce' so ignore any fast transitions, otherwise you start playing instead of clearing
-                elif self._presets_buttondown_count[i] > 5:
-                    tmp_preset = self._presets[i + 1]
-                    if not tmp_preset is None:
-                        self.play_station(tmp_preset)
-                self._presets_buttondown_count[i] = 0
+        # Check for a change of command
+        if self._curses.has_command_changed():
+            if buttons == commands.CMD_UP:
+                self.volume_up(current_volume)
+            elif buttons == commands.CMD_DOWN:
+                self.volume_down(current_volume)
+            elif buttons == commands.CMD_PLAY:
+                self.start_playback()
+            elif buttons == commands.CMD_PAUSE:
+                self.pause_playback()
+            elif buttons == commands.CMD_STOP:
+                self.stop_playback()
+            elif buttons == commands.CMD_MODE:
+                self._state = Radio.RADIO_STATE_LIST_STATIONS
+            elif (buttons == commands.CMD_LEFT) | (buttons == commands.CMD_RIGHT):
+                self._alt_display = self._alt_display ^ True
+            elif (buttons & commands.CMD_DSPSEL_MASK) == commands.CMD_DSPSEL_MASK:
+                if buttons == commands.CMD_DSPSEL1:
+                    self._presets_buttondown_count[0] += 1
+                elif buttons == commands.CMD_DSPSEL2:
+                    self._presets_buttondown_count[1] += 1
+                elif buttons == commands.CMD_DSPSEL3:
+                    self._presets_buttondown_count[2] += 1
+                elif buttons == commands.CMD_DSPSEL4:
+                    self._presets_buttondown_count[3] += 1
+            elif (buttons & commands.CMD_DSPSEL_MASK) == 0:
+                for i in range(0,4):
+                    # This should work out to be about 5 secs
+                    if self._presets_buttondown_count[i] > 15:
+                        if playback_state == "play":
+                            for station in self._stations[self._page]:
+                                if station.is_selected():
+                                    self._presets[i + 1] = station
+                        else:
+                            self._presets[i + 1] = None
+                    # There's some 'bounce' so ignore any fast transitions, otherwise you start playing instead of clearing
+                    elif self._presets_buttondown_count[i] > 1:
+                        tmp_preset = self._presets[i + 1]
+                        if not tmp_preset is None:
+                            self.play_station(tmp_preset)
+                    self._presets_buttondown_count[i] = 0
+            # Support selecting radio preset from IR remote, using numeric keys
+            elif buttons == commands.CMD_1:
+                tmp_preset = self._presets[1]
+                if not tmp_preset is None:
+                    self.play_station(tmp_preset)
+            elif buttons == commands.CMD_2:
+                tmp_preset = self._presets[2]
+                if not tmp_preset is None:
+                    self.play_station(tmp_preset)
+            elif buttons == commands.CMD_3:
+                tmp_preset = self._presets[3]
+                if not tmp_preset is None:
+                    self.play_station(tmp_preset)
+            elif buttons == commands.CMD_4:
+                tmp_preset = self._presets[4]
+                if not tmp_preset is None:
+                    self.play_station(tmp_preset)
 
         # Draw screen
         self._station_ticker.setText(song_station)
         self._song_ticker.setText(song_name)
-        self._screen.clear()
+        self._curses.get_screen().clear()
         if playback_state == "play":
             state_str = "Playing   "
         elif playback_state == "pause":
@@ -275,15 +311,15 @@ class Radio(object):
         else:
             state_str = "          "
         state_str += "  Vol: " + str(current_volume).rjust(3)
-        self._screen.addstr(0,0,state_str)
+        self._curses.get_screen().addstr(0,0,state_str)
         if self._alt_display:
             line1 = stream_bitrate.rjust(4) + " kbps " + audiostream_info
             line2 = playback_time.rjust(11)
         else:
             line1 = self._station_ticker.getText()
             line2 = self._song_ticker.getText()
-        self._screen.addstr(1,0,line1)
-        self._screen.addstr(2,0,line2)
+        self._curses.get_screen().addstr(1,0,line1)
+        self._curses.get_screen().addstr(2,0,line2)
         menu_str = ""
         for i in range(1,5):
             tmp_preset = self._presets[i]
@@ -291,12 +327,12 @@ class Radio(object):
                 menu_str += "     "
             else:
                 menu_str += tmp_preset.get_initials().center(5)
-        self._screen.addstr(3,0,menu_str)
+        self._curses.get_screen().addstr(3,0,menu_str)
 
         self._station_ticker.pulse()
         self._song_ticker.pulse()
 
-        self._screen.refresh()
+        self._curses.get_screen().refresh()
 
 #####################################################################################################
 # MPD functions
@@ -378,7 +414,7 @@ class Radio(object):
             tmp_station = Station(tmp_station[0], tmp_station[1], tmp_selected)
             tmp_selected = False
             stations.append(tmp_station)
-        self._stations = curses_wrapper.convert_2_pages(stations,8)
+        self._stations = screen_utils.convert_2_pages(stations,8)
 
     def create_tables(self):
         sql_csr = self._parent.get_sqlcon().cursor()

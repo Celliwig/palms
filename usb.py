@@ -1,23 +1,21 @@
 from __future__ import print_function
-import curses
-from .curses_wrapper import curses_wrapper
 from . import commands
 
 class USB(object):
     def __init__(self, home):
         self._parent = home
-        self._screen = home.get_screen()
+        self._curses = home.get_curses()
         self._sched = home.get_scheduler()
         self._active = False
         self._selected = False
 
-        self._sched.add_job(self.io_handler, 'interval', seconds=0.1)
+        self._job = self._sched.add_job(self.io_handler, 'interval', seconds=0.1)
 
     def close(self):
         self._active = False
 
     def __str__(self):
-        return 'USB(screen=%s)' % (self._screen)
+        return 'USB(screen=%s)' % (self._curses.get_screen())
 
     def __repr__(self):
         return str(self)
@@ -30,6 +28,10 @@ class USB(object):
 
     def set_active(self, act):
         self._active = act
+        if act:
+            self._job.resume()
+        else:
+            self._job.pause()
 
     def is_selected(self):
         return self._selected
@@ -38,51 +40,30 @@ class USB(object):
         self._selected = val
 
     def io_handler(self):
+        # Pause job (stops lots of warnings)
+        self._job.pause()
+
         # Get button presses
         if self.is_active():
             self._parent.get_MPDclient().ping()
-            buttons = curses_wrapper.getbuttons(self._screen)
+            buttons = self._curses.get_command()
 
-            # Action button events
-            if buttons == commands.CMD_POWER:
-                self._parent.set_poweroff(True)
-            elif buttons == commands.CMD_CDHD:
-                self.set_active(False)
-                self._parent.set_active(True)
-#            elif buttons == commands.CMD_UP:
-#                last_control = None
-#                for control in self._controls:
-#                    if control.is_selected():
-#                        if not last_control is None:
-#                            last_control.set_selected(True)
-#                            control.set_selected(False)
-#                            break
-#                    last_control = control
-#            elif buttons == commands.CMD_DOWN:
-#                last_control = None
-#                for control in self._controls:
-#                    if not last_control is None:
-#                        last_control.set_selected(False)
-#                        control.set_selected(True)
-#                        break
-#                    if control.is_selected():
-#                        last_control = control
+            # Check for a change of command
+            if self._curses.has_command_changed():
+                # Action button events
+                if buttons == commands.CMD_POWER:
+                    self._parent.set_poweroff(True)
+                elif buttons == commands.CMD_CDHD:
+                    self.set_active(False)
+                    self._parent.set_active(True)
 
-#            # Draw screen
-#            line = 0
-#            for control in self._controls:
-## LCD does not support reversed fonts
-##                attributes = curses.A_NORMAL
-##                if control.is_selected():
-##                    attributes = curses.A_REVERSE
-#                if control.is_selected():
-#                    self._screen.addch(line,0,'>')
-#                else:
-#                    self._screen.addch(line,0,' ')
-#                self._screen.addstr(control.control_name())
-#                line += 1
-            self._screen.clear()
-            self._screen.addstr(1,9,'Not')
-            self._screen.addstr(2,4,'Implemented')
-            self._screen.refresh()
+            # Draw screen
+            self._curses.get_screen().clear()
+            self._curses.get_screen().addstr(1,9,'Not')
+            self._curses.get_screen().addstr(2,4,'Implemented')
+            self._curses.get_screen().refresh()
+
+        # Resume job (should probably put this in a mutex)
+        if self.is_active():
+            self._job.resume()
 

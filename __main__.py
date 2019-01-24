@@ -11,6 +11,7 @@ import os, pwd
 
 from . import *
 from .home import Home
+from .curses_wrapper import *
 
 def usage():
     print(USAGE % sys.argv[0])
@@ -95,18 +96,12 @@ def main():
     sched.start()
 
     # Create a screen
+    scr_typ = curses_wrapper.SCREEN_TYPE_NONE
     if args.console:
-        import curses
-        stdscr = curses.initscr()
-        curses.noecho()
-        curses.raw()
-        stdscr.keypad(True)
-        stdscr.nodelay(True)
+        scr_typ = curses_wrapper.SCREEN_TYPE_NCURSES
     elif args.panel:
-        from .dev_panel import dev_panel
-        stdscr = dev_panel()
-    else:
-        stdscr = None
+        scr_typ = curses_wrapper.SCREEN_TYPE_FPDEVICE
+    stdscr = curses_wrapper(scr_typ)
 
 # Init Home
     home = Home(stdscr, sched, sqlcon, mpd_client)
@@ -119,15 +114,7 @@ def main():
     home.close()
 
     # Destroy screen
-    if args.console:
-        stdscr.keypad(False)
-        curses.noraw()
-        curses.echo()
-        curses.endwin()
-    elif args.panel:
-        stdscr.close()
-    else:
-        stdscr = None
+    stdscr.close()
 
     # Shutdown screen
     sched.shutdown()

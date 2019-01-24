@@ -1,14 +1,13 @@
 from __future__ import print_function
-import curses
-from .curses_wrapper import curses_wrapper
 from .mpdentity import MPDEntity
+from .screen_utils import *
 from .ticker import Ticker
 from . import commands
 
 class DLNA(object):
     def __init__(self, home):
         self._parent = home
-        self._screen = home.get_screen()
+        self._curses = home.get_curses()
         self._sched = home.get_scheduler()
         self._active = False
         self._selected = False
@@ -27,7 +26,7 @@ class DLNA(object):
         self._active = False
 
     def __str__(self):
-        return 'DLNA(screen=%s)' % (self._screen)
+        return 'DLNA(screen=%s)' % (self._curses.get_screen())
 
     def __repr__(self):
         return str(self)
@@ -56,9 +55,9 @@ class DLNA(object):
         self.get_directory_list(self._paths[-1])
 
     def get_directory_list(self, path):
-        self._screen.clear()
-        self._screen.addstr(1,0,'Please wait'.center(20))
-        self._screen.refresh()
+        self._curses.get_screen().clear()
+        self._curses.get_screen().addstr(1,0,'Please wait'.center(20))
+        self._curses.get_screen().refresh()
 
         dlist = []
         for item in self._parent.get_MPDclient().listfiles(path):
@@ -68,7 +67,7 @@ class DLNA(object):
             dlist.append(tmp_mpde)
         if len(dlist) == 0:
             dlist.append(MPDEntity({ "Error": "N/A" }, ""))
-        self._directory_list = curses_wrapper.convert_2_pages(dlist, 8)
+        self._directory_list = screen_utils.convert_2_pages(dlist, 8)
         self._page = 0
 
     def generate_playlist(self):
@@ -99,7 +98,7 @@ class DLNA(object):
         # Get button presses
         if self.is_active():
             self._parent.get_MPDclient().ping()
-            buttons = curses_wrapper.getbuttons(self._screen)
+            buttons = self._curses.get_command()
 
             # Handle over arching button events seperately
             if buttons == commands.CMD_POWER:
@@ -128,7 +127,7 @@ class DLNA(object):
 #####################################################################################################
 # I/O routines
     def show_directory_contents(self, buttons):
-        screen_size = self._screen.getmaxyx()
+        screen_size = self._curses.get_screen().getmaxyx()
 
         if buttons == commands.CMD_UP:
             last_dentry = None
@@ -187,7 +186,7 @@ class DLNA(object):
                  self._parent.set_active(True)
 
         # Draw screen
-        self._screen.clear()
+        self._curses.get_screen().clear()
         dentry_count = 0
         screen_line_num = 0
         screen_row_offset = 0
@@ -201,18 +200,18 @@ class DLNA(object):
                 screen_line_num = 0
                 screen_row_offset = 11
             if dentry.is_selected():
-                self._screen.addch(screen_line_num,screen_row_offset,'>')
+                self._curses.get_screen().addch(screen_line_num,screen_row_offset,'>')
             else:
-                self._screen.addch(screen_line_num,screen_row_offset,' ')
-            self._screen.addstr(dentry.get_ticker_txt())
+                self._curses.get_screen().addch(screen_line_num,screen_row_offset,' ')
+            self._curses.get_screen().addstr(dentry.get_ticker_txt())
             dentry.pulse()
             screen_line_num += 1
             dentry_count += 1
 
-        self._screen.refresh()
+        self._curses.get_screen().refresh()
 
     def show_stream_playback(self, buttons):
-        screen_size = self._screen.getmaxyx()
+        screen_size = self._curses.get_screen().getmaxyx()
 
         mpd_status = self._parent.get_MPDclient().status()
         current_volume = int(mpd_status["volume"])
@@ -291,7 +290,7 @@ class DLNA(object):
         # Draw screen
         self._line1.setText(song_artist + " - " + song_album)
         self._line2.setText(song_title)
-        self._screen.clear()
+        self._curses.get_screen().clear()
         if playback_state == "play":
             state_str = "Playing   "
         elif playback_state == "pause":
@@ -299,15 +298,15 @@ class DLNA(object):
         else:
             state_str = "          "
         state_str += "  Vol: " + str(current_volume).rjust(3)
-        self._screen.addstr(0,0,state_str)
+        self._curses.get_screen().addstr(0,0,state_str)
         if self._alt_display:
             line1 = stream_bitrate.rjust(4) + " kbps " + audiostream_info
             line2 = playback_time.rjust(11)
         else:
             line1 = self._line1.getText()
             line2 = self._line2.getText()
-        self._screen.addstr(1,0,line1)
-        self._screen.addstr(2,0,line2)
+        self._curses.get_screen().addstr(1,0,line1)
+        self._curses.get_screen().addstr(2,0,line2)
 #        menu_str = ""
 #        for i in range(1,5):
 #            tmp_preset = self._presets[i]
@@ -315,12 +314,12 @@ class DLNA(object):
 #                menu_str += "     "
 #            else:
 #                menu_str += tmp_preset.get_initials().center(5)
-#        self._screen.addstr(3,0,menu_str)
+#        self._curses.get_screen().addstr(3,0,menu_str)
 
         self._line1.pulse()
         self._line2.pulse()
 
-        self._screen.refresh()
+        self._curses.get_screen().refresh()
 
 #####################################################################################################
 # MPD functions

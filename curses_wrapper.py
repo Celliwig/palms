@@ -7,13 +7,57 @@
 
 import curses
 from . import commands
+from .dev_panel import *
 
 class curses_wrapper(object):
+    SCREEN_TYPE_NONE = 0
+    SCREEN_TYPE_NCURSES = 1
+    SCREEN_TYPE_FPDEVICE = 2
 
-    def getbuttons(screen):
-        if screen.__class__.__name__ == 'curses window':
-            rtn = 0
-            key = screen.getch()
+    def __init__(self, screen_type):
+        self._command_current = None
+        self._command_previous = None
+        self._command_changed = False
+        self._command_repeat = 0
+        self._command_repeat_delay = 0
+
+        self._screen = None
+        self._screen_type = screen_type
+
+        if self._screen_type == self.SCREEN_TYPE_NCURSES:
+            self._screen = curses.initscr()
+            curses.cbreak()
+            curses.noecho()
+            curses.raw()
+            curses.curs_set(False)
+            self._screen.keypad(True)
+            self._screen.nodelay(True)
+
+        if self._screen_type == self.SCREEN_TYPE_FPDEVICE:
+            self._screen = dev_panel()
+
+    # Destroy screen
+    def close(self):
+        if self._screen_type == self.SCREEN_TYPE_NCURSES:
+            self._screen.keypad(False)
+            curses.curs_set(True)
+            curses.noraw()
+            curses.echo()
+            curses.nocbreak()
+            curses.endwin()
+
+        if self._screen_type == self.SCREEN_TYPE_FPDEVICE:
+            self._screen.close()
+
+    def get_screen(self):
+        return self._screen
+
+    def get_command(self):
+        rtn = 0
+        self._command_previous = self._command_current
+
+        if self._screen_type == self.SCREEN_TYPE_NCURSES:
+            key = self._screen.getch()
             #print(key)
             if key == ord('e'):
                 rtn = rtn | commands.CMD_EJECT
@@ -52,13 +96,44 @@ class curses_wrapper(object):
             elif key == curses.KEY_F12:
                 rtn = rtn | commands.CMD_POWER
 
-            return rtn
-        elif screen.__class__.__name__ == 'dev_panel':
-            return screen.getbuttons();
-        else:
-            print(screen.__class__.__name__)
-            return 0;
+        elif self._screen_type == self.SCREEN_TYPE_FPDEVICE:
+            rtn = self._screen.getbuttons();
 
-    def convert_2_pages(item_list, page_length):
-        return [item_list[i:i + page_length] for i in range(0, len(item_list), page_length)]
+        self._command_current = rtn
+
+        # Set the flag to indicate if the command has changed sinece it was last read
+        if self._command_current == self._command_previous:
+            self._command_changed = False
+        else:
+            self._command_changed = True
+            self._command_repeat_delay = 10					# Delay for about a second
+            self._command_repeat = 3						# Repeat at about 3 Hz
+
+        # Some keys need to be repeated however
+        if self._command_changed == False:
+            repeat_key = False
+            if self._command_current == commands.CMD_UP: repeat_key = True
+            if self._command_current == commands.CMD_DOWN: repeat_key = True
+            if self._command_current == commands.CMD_DSPSEL1: repeat_key = True
+            if self._command_current == commands.CMD_DSPSEL2: repeat_key = True
+            if self._command_current == commands.CMD_DSPSEL3: repeat_key = True
+            if self._command_current == commands.CMD_DSPSEL4: repeat_key = True
+
+            if repeat_key:
+                if self._command_repeat_delay > 0:
+                    self._command_repeat_delay -= 1
+                else:
+                    self._command_changed = True
+                    self._command_repeat = 3                                    # Repeat at about 3 Hz
+
+        return self._command_current
+
+    def has_command_changed(self):
+        return self._command_changed
+
+def main():
+    print(display_wrapper.SCREEN_TYPE_NONE)
+
+if __name__ == "__main__":
+    main()
 
