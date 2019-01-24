@@ -1,5 +1,6 @@
 from __future__ import print_function
 import logging
+import os.path
 from .mpd_request_files import *
 from .mpdentity import MPDEntity
 from .screen_utils import *
@@ -11,6 +12,9 @@ class Browser(object):
     BROWSER_STATE_SHOW_DIR = 1
     BROWSER_STATE_PLAYBACK = 2
 
+    PLAYLIST_ACTION_CLEAR_THEN_ADD_DIR = 0
+    PLAYLIST_ACTION_ADD = 1
+
     def __init__(self, home):
         self._parent = home
         self._curses = home.get_curses()
@@ -20,6 +24,7 @@ class Browser(object):
         self._state = Browser.BROWSER_STATE_INIT
 
         self._paths = []
+        self._last_path = None
         self._directory_list = None
         self._request_thread = None
 
@@ -30,7 +35,7 @@ class Browser(object):
         self._line2 = Ticker(20)
 
         self._logger = logging.getLogger(__name__)
-        self._job_main = self._sched.add_job(self.io_handler_main, 'interval', seconds=0.1)
+        self._job_main = self._sched.add_job(self._io_handler_main, 'interval', seconds=0.1)
 
     def close(self):
         self._active = False
@@ -58,7 +63,7 @@ class Browser(object):
 
 # Method called by the scheduler, proceeds based on current state
 #####################################################################################################
-    def io_handler_main(self):
+    def _io_handler_main(self):
         self._logger.debug("Executing scheduled main task")
         # Pause job (stops lots of warnings)
         self._job_main.pause()
@@ -68,12 +73,14 @@ class Browser(object):
             fp_command = self._curses.get_command()
             self._logger.debug("Currnet command: " + str(fp_command))
 
-            # Handle over arching button events seperately
-            if fp_command == commands.CMD_POWER:
-                self._parent.set_poweroff(True)
-            elif fp_command == commands.CMD_CDHD:
-                self.set_active(False)
-                self._parent.set_active(True)
+            # Check for a change of command
+            if self._curses.has_command_changed():
+                # Handle over arching button events seperately
+                if fp_command == commands.CMD_POWER:
+                    self._parent.set_poweroff(True)
+                elif fp_command == commands.CMD_CDHD:
+                    self.set_active(False)
+                    self._parent.set_active(True)
 
             # Process directory request
             if self._request_thread is None:
@@ -83,92 +90,115 @@ class Browser(object):
                     if not self._request_thread.error_occurred():
                         dlist = []
                         for item in self._request_thread.get_directory_list():
-                            tmp_mpde = MPDEntity(item, self._request_thread.get_path())
+                            tmp_mpde = MPDEntity(item)
                             dlist.append(tmp_mpde)
                         if len(dlist) == 0:
-                            dlist.append(MPDEntity({ "Error": "N/A" }, ""))
+                            dlist.append(MPDEntity({ "Error": "N/A" }))
                         dlist.sort()
-                        dlist[0].set_selected(True)
                         self._directory_list = screen_utils.convert_2_pages(dlist, 8)
-                        self._page = 0
                         self._request_thread = None
+
+                        # Set appropriate page, and select item
+                        if self._last_path is None:
+                            self._page = 0
+                            self._directory_list[0][0].set_selected(True)
+                        else:
+                            tmp_page_index = 0
+                            for dentry_page in self._directory_list:
+                                if self._last_path is None:
+                                    break
+                                else:
+                                    for dentry in dentry_page:
+                                        if self._last_path is None:
+                                            break
+                                        else:
+                                            if dentry.is_directory():
+                                                if self._last_path == dentry:
+                                                    dentry.set_selected(True)
+                                                    self._page = tmp_page_index
+                                                    self._last_path = None
+                                tmp_page_index += 1
 
             # Actions are dependent on machine state
             # No state
             if self._state == Browser.BROWSER_STATE_INIT:
-                self.move_into_directory("")
+                self._move_into_directory(MPDEntity({ "directory": "" }))
                 self._state = Browser.BROWSER_STATE_SHOW_DIR
             # show current directory contents
             elif (self._state == Browser.BROWSER_STATE_SHOW_DIR):
-                self.show_directory_contents(fp_command)
+                self._show_directory_contents(fp_command)
             # Show stream playback
             elif (self._state == Browser.BROWSER_STATE_PLAYBACK):
-                self.show_stream_playback(fp_command)
+                self._show_stream_playback(fp_command)
 
         # Resume job
         self._job_main.resume()
 
+# Method displays a list of files/directories
 #####################################################################################################
-# I/O routines
-    def show_directory_contents(self, fp_command):
+    def _show_directory_contents(self, fp_command):
         screen_size = self._curses.get_screen().getmaxyx()
 
         if self._request_thread is None:
-            if fp_command == commands.CMD_UP:
-                last_dentry = None
-                for dentry in self._directory_list[self._page]:
-                    if dentry.is_selected():
-                        if last_dentry is None:
-                            # Check there's another page
-                            if self._page == 0:
-                                self._page = len(self._directory_list) - 1
+            # Check for a change of command
+            if self._curses.has_command_changed():
+                if fp_command == commands.CMD_UP:
+                    last_dentry = None
+                    for dentry in self._directory_list[self._page]:
+                        if dentry.is_selected():
+                            if last_dentry is None:
+                                # Check there's another page
+                                if self._page == 0:
+                                    self._page = len(self._directory_list) - 1
+                                else:
+                                    self._page -= 1
+                                dentry.set_selected(False)
+                                tmp_dlist = self._directory_list[self._page]
+                                tmp_dlist[-1].set_selected(True)
                             else:
-                                self._page -= 1
-                            dentry.set_selected(False)
-                            tmp_dlist = self._directory_list[self._page]
-                            tmp_dlist[-1].set_selected(True)
-                        else:
-                            last_dentry.set_selected(True)
-                            dentry.set_selected(False)
-                        break
-                    last_dentry = dentry
-            elif fp_command == commands.CMD_DOWN:
-                last_dentry = None
-                for dentry in self._directory_list[self._page]:
-                    if not last_dentry is None:
-                        last_dentry.set_selected(False)
-                        dentry.set_selected(True)
-                        break
-                    if dentry.is_selected():
+                                last_dentry.set_selected(True)
+                                dentry.set_selected(False)
+                            break
                         last_dentry = dentry
-                # We've reached the end of the page
-                if last_dentry.is_selected():
-                    # Check there's another page
-                    if len(self._directory_list) == (self._page + 1):
-                        self._page = 0
+                elif fp_command == commands.CMD_DOWN:
+                    last_dentry = None
+                    for dentry in self._directory_list[self._page]:
+                        if not last_dentry is None:
+                            last_dentry.set_selected(False)
+                            dentry.set_selected(True)
+                            break
+                        if dentry.is_selected():
+                            last_dentry = dentry
+                    # We've reached the end of the page
+                    if last_dentry.is_selected():
+                        # Check there's another page
+                        if len(self._directory_list) == (self._page + 1):
+                            self._page = 0
+                        else:
+                            self._page += 1
+                        last_dentry.set_selected(False)
+                        self._directory_list[self._page][0].set_selected(True)
+                elif (fp_command == commands.CMD_SELECT) or (fp_command == commands.CMD_RIGHT):
+                    for dentry in self._directory_list[self._page]:
+                        if dentry.is_selected():
+                            if dentry.is_directory():
+                                self._move_into_directory(dentry)
+                            if dentry.is_file():
+                                songid = self._generate_playlist(Browser.PLAYLIST_ACTION_ADD)
+                                self._start_playback(songid)
+                                self._state = Browser.BROWSER_STATE_PLAYBACK
+                elif fp_command == commands.CMD_PLAY:
+                    songid = self._generate_playlist(Browser.PLAYLIST_ACTION_CLEAR_THEN_ADD_DIR)
+                    self._start_playback(songid)
+                    self._state = Browser.BROWSER_STATE_PLAYBACK
+                elif fp_command == commands.CMD_MODE:
+                    self._state = Browser.BROWSER_STATE_PLAYBACK
+                elif fp_command == commands.CMD_LEFT:
+                    if len(self._paths) > 1:
+                        self._move_outof_directory()
                     else:
-                        self._page += 1
-                    last_dentry.set_selected(False)
-                    self._directory_list[self._page][0].set_selected(True)
-            elif fp_command == commands.CMD_SELECT:
-                for dentry in self._directory_list[self._page]:
-                    if dentry.is_selected():
-                        if dentry.is_directory():
-                            self.move_into_directory(dentry.get_full_path())
-                        if dentry.is_file():
-                            songid = self.generate_playlist()
-                            self.start_playback(songid)
-                            self._state = Browser.BROWSER_STATE_PLAYBACK
-            elif fp_command == commands.CMD_PLAY:
-                songid = self.generate_playlist()
-                self.start_playback(songid)
-                self._state = Browser.BROWSER_STATE_PLAYBACK
-            elif fp_command == commands.CMD_MODE:
-                if len(self._paths) > 1:
-                    self.move_out_directory()
-                else:
-                    self.set_active(False)
-                    self._parent.set_active(True)
+                        self.set_active(False)
+                        self._parent.set_active(True)
 
             # Draw screen
             self._curses.get_screen().clear()
@@ -213,7 +243,9 @@ class Browser(object):
 #            self._curses.get_screen().addstr(1,0,'Error'.center(20))
 #            self._curses.get_screen().refresh()
 
-    def show_stream_playback(self, fp_command):
+# Method displays the playback of a particular file
+#####################################################################################################
+    def _show_stream_playback(self, fp_command):
         screen_size = self._curses.get_screen().getmaxyx()
 
         mpd_status = self._parent.get_MPDclient().status()
@@ -236,63 +268,86 @@ class Browser(object):
         if "album" in mpd_songinfo:
             song_album = mpd_songinfo["album"]
         else:
-            song_album = ""
+            song_album = None
         if "artist" in mpd_songinfo:
             song_artist = mpd_songinfo["artist"]
         else:
-            song_artist = ""
+            song_artist = None
+        if "file" in mpd_songinfo:
+            song_file = os.path.basename(mpd_songinfo["file"])
+        else:
+            song_file = None
         if "title" in mpd_songinfo:
             song_title = mpd_songinfo["title"]
         else:
-            song_title = ""
+            song_title = None
 
-        if fp_command == commands.CMD_UP:
-            self.volume_up(current_volume)
-        elif fp_command == commands.CMD_DOWN:
-            self.volume_down(current_volume)
-        elif fp_command == commands.CMD_PLAY:
-            self.start_playback()
-        elif fp_command == commands.CMD_PAUSE:
-            self.pause_playback()
-        elif fp_command == commands.CMD_STOP:
-            self.stop_playback()
-        elif fp_command == commands.CMD_MODE:
-            self._state = Browser.BROWSER_STATE_SHOW_DIR
-        elif (fp_command == commands.CMD_LEFT) | (fp_command == commands.CMD_RIGHT):
-            self._alt_display = self._alt_display ^ True
-        elif fp_command == commands.CMD_PREVIOUS:
-            self.prev_playback()
-        elif fp_command == commands.CMD_NEXT:
-            self.next_playback()
+        # Check for a change of command
+        if self._curses.has_command_changed():
+            if fp_command == commands.CMD_UP:
+                self._volume_up(current_volume)
+            elif fp_command == commands.CMD_DOWN:
+                self._volume_down(current_volume)
+            elif fp_command == commands.CMD_PLAY:
+                self._start_playback()
+            elif fp_command == commands.CMD_PAUSE:
+                self._pause_playback()
+            elif fp_command == commands.CMD_STOP:
+                self._stop_playback()
+            elif fp_command == commands.CMD_MODE:
+                self._state = Browser.BROWSER_STATE_SHOW_DIR
+            elif (fp_command == commands.CMD_LEFT) | (fp_command == commands.CMD_RIGHT):
+                self._alt_display = self._alt_display ^ True
+            elif fp_command == commands.CMD_PREVIOUS:
+                self._prev_playback()
+            elif fp_command == commands.CMD_NEXT:
+                self._next_playback()
 
-#        elif (fp_command & commands.CMD_DSPSEL_MASK) == commands.CMD_DSPSEL_MASK:
-#            if fp_command == commands.CMD_DSPSEL1:
-#                self._presets_buttondown_count[0] += 1
-#            elif fp_command == commands.CMD_DSPSEL2:
-#                self._presets_buttondown_count[1] += 1
-#            elif fp_command == commands.CMD_DSPSEL3:
-#                self._presets_buttondown_count[2] += 1
-#            elif fp_command == commands.CMD_DSPSEL4:
-#                self._presets_buttondown_count[3] += 1
-#        elif (fp_command & commands.CMD_DSPSEL_MASK) == 0:
-#            for i in range(0,4):
-#                if self._presets_buttondown_count[i] > 50:
-#                    if playback_state == "play":
-#                        for station in self._stations[self._page]:
-#                            if station.is_selected():
-#                                self._presets[i + 1] = station
-#                    else:
-#                        self._presets[i + 1] = None
-#                # There's some 'bounce' so ignore any fast transitions, otherwise you start playing instead of clearing
-#                elif self._presets_buttondown_count[i] > 5:
-#                    tmp_preset = self._presets[i + 1]
-#                    if not tmp_preset is None:
-#                        self.play_station(tmp_preset)
-#                self._presets_buttondown_count[i] = 0
+#            elif (fp_command & commands.CMD_DSPSEL_MASK) == commands.CMD_DSPSEL_MASK:
+#                if fp_command == commands.CMD_DSPSEL1:
+#                    self._presets_buttondown_count[0] += 1
+#                elif fp_command == commands.CMD_DSPSEL2:
+#                    self._presets_buttondown_count[1] += 1
+#                elif fp_command == commands.CMD_DSPSEL3:
+#                    self._presets_buttondown_count[2] += 1
+#                elif fp_command == commands.CMD_DSPSEL4:
+#                    self._presets_buttondown_count[3] += 1
+#            elif (fp_command & commands.CMD_DSPSEL_MASK) == 0:
+#                for i in range(0,4):
+#                    if self._presets_buttondown_count[i] > 50:
+#                        if playback_state == "play":
+#                            for station in self._stations[self._page]:
+#                                if station.is_selected():
+#                                    self._presets[i + 1] = station
+#                        else:
+#                            self._presets[i + 1] = None
+#                    # There's some 'bounce' so ignore any fast transitions, otherwise you start playing instead of clearing
+#                    elif self._presets_buttondown_count[i] > 5:
+#                        tmp_preset = self._presets[i + 1]
+#                        if not tmp_preset is None:
+#                            self.play_station(tmp_preset)
+#                    self._presets_buttondown_count[i] = 0
 
         # Draw screen
-        self._line1.setText(song_artist + " - " + song_album)
-        self._line2.setText(song_title)
+        song_artist_album = None
+        if not song_artist is None:
+            song_artist_album = song_artist
+        if not song_album is None:
+            if not song_artist_album is None:
+                song_artist_album += " - "
+            song_artist_album += song_album
+        if song_artist_album is None:
+            self._line1.setText("")
+        else:
+            self._line1.setText(song_artist_album)
+
+        if not song_title is None:
+            self._line2.setText(song_title)
+        elif not song_file is None:
+            self._line2.setText(song_file)
+        else:
+            self._line2.setText()
+
         self._curses.get_screen().clear()
         if playback_state == "play":
             state_str = "Playing   "
@@ -324,69 +379,94 @@ class Browser(object):
 
         self._curses.get_screen().refresh()
 
-#####################################################################################################
 # Browser functions
-    def move_into_directory(self, path):
-        self._paths.append(path)
-        self.get_directory_list(self._paths[-1])
+#####################################################################################################
+    def _move_into_directory(self, dentry):
+        self._paths.append(dentry)
+        self._logger.debug("Path stack:")
+        for tmp_path in self._paths:
+	        self._logger.debug(str(tmp_path))
+        self._get_directory_list(self._paths[-1].get_full_path())
 
-    def move_out_directory(self):
+    def _move_outof_directory(self):
+        self._last_path = self._paths[-1]
         del self._paths[-1]
-        self.get_directory_list(self._paths[-1])
+        self._logger.debug("Path stack:")
+        for tmp_path in self._paths:
+	        self._logger.debug(str(tmp_path))
+        self._get_directory_list(self._paths[-1].get_full_path())
 
-    def get_directory_list(self, path):
+    def _get_directory_list(self, path):
         self._request_thread = mpd_request_files(self._parent.get_MPDclient(), path)
         self._request_thread.start()
 
-    def generate_playlist(self):
-        selected_dentry = None
-        # First find what is selected
-        for dentry in self._directory_list[self._page]:
-            if dentry.is_selected():
-                selected_dentry = dentry
+    def _generate_playlist(self, action):
+        if action == Browser.PLAYLIST_ACTION_CLEAR_THEN_ADD_DIR:
+            mpd_client = self._parent.get_MPDclient()
+            mpd_client.clear()
 
+            selected_dentry = None
+            # First find what is selected
+            for dentry in self._directory_list[self._page]:
+                if dentry.is_selected():
+                    selected_dentry = dentry
+
+            # Add only the selected file, and the rest of the files in the directory
+            selected_song_id = None
+            if selected_dentry.is_file():
+                for dentry_page in self._directory_list:
+                    for dentry in dentry_page:
+                        if dentry.is_file():
+                            self._logger.debug("Adding track: " + str(dentry))
+                            tmp_song_id = mpd_client.addid(dentry.get_full_path())
+                            if selected_dentry == dentry:
+                                self._logger.debug("Track matched, song ID: " + tmp_song_id)
+                                selected_song_id = tmp_song_id
+                return selected_song_id
+            # Add everything in this directory
+            elif selected_dentry.is_directory():
+                self._generate_playlist_recursive(selected_dentry.get_full_path())
+                return None
+        elif action == Browser.PLAYLIST_ACTION_ADD:
+            mpd_client = self._parent.get_MPDclient()
+
+            selected_dentry = None
+            # First find what is selected
+            for dentry in self._directory_list[self._page]:
+                if dentry.is_selected():
+                    if dentry.is_file():
+                        mpd_client.add(dentry.get_full_path())
+
+    def _generate_playlist_recursive(self, path):
         mpd_client = self._parent.get_MPDclient()
-        mpd_client.clear()
-        songid = None
+        mpd_client.add(path)
 
-        if selected_dentry.is_file():
-            mpd_client.add(selected_dentry.get_full_path())
-#            # Add everything in this directory
-#        elif selected_dentry.is_directory():
-#            # Add everything in the selected directory
-#
-#        #mpd_client.add(self._paths[-1])
-#        #return songid
-#
-#    def generate_playlist_recursive(self):
-
-
-#####################################################################################################
 # MPD functions
-    def start_playback(self, songid = None):
+#####################################################################################################
+    def _start_playback(self, songid = None):
         if songid is None:
             self._parent.get_MPDclient().play()
         else:
             self._parent.get_MPDclient().playid(songid)
 
-    def pause_playback(self):
+    def _pause_playback(self):
         self._parent.get_MPDclient().pause()
 
-    def stop_playback(self):
+    def _stop_playback(self):
         self._parent.get_MPDclient().stop()
 
-    def next_playback(self):
+    def _next_playback(self):
         self._parent.get_MPDclient().next()
 
-    def prev_playback(self):
+    def _prev_playback(self):
         self._parent.get_MPDclient().previous()
 
-    def volume_down(self, current_vol):
+    def _volume_down(self, current_vol):
         if current_vol > 0:
             current_vol -= 1
         self._parent.get_MPDclient().setvol(current_vol)
 
-    def volume_up(self, current_vol):
+    def _volume_up(self, current_vol):
         if current_vol < 100:
             current_vol += 1
         self._parent.get_MPDclient().setvol(current_vol)

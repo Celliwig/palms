@@ -184,13 +184,14 @@ class Radio(object):
                         self._page += 1
                     last_station.set_selected(False)
                     self._stations[self._page][0].set_selected(True)
-            elif fp_command == commands.CMD_SELECT:
+            elif (fp_command == commands.CMD_SELECT) or (fp_command == commands.CMD_RIGHT):
                 for station in self._stations[self._page]:
                     if station.is_selected():
                         self._play_station(station)
                         self._state = Radio.RADIO_STATE_PLAYBACK
-            # Back button
             elif fp_command == commands.CMD_MODE:
+                self._state = Radio.RADIO_STATE_PLAYBACK
+            elif fp_command == commands.CMD_LEFT:
                 self.set_active(False)
                 self._parent.set_active(True)
 
@@ -404,8 +405,8 @@ class Radio(object):
 
         self._curses.get_screen().refresh()
 
-#####################################################################################################
 # MPD functions
+#####################################################################################################
     def _play_station(self, station):
         if station.get_url() != self._current_station:
             self._current_station = station.get_url()
@@ -437,8 +438,8 @@ class Radio(object):
     def _extract_station_name(self, station):
         return re.search('^([0-9A-Za-z ]+)', station).group(1)
 
-#####################################################################################################
 # SQL functions
+#####################################################################################################
     def _set_preset(self, preset, station):
         sql_csr = self._config.get_sqlcon().cursor()
         sql_update = "REPLACE INTO radio_presets (preset, station_name, station_url) VALUES (\"" + str(preset) + "\", \"" + station.get_name() + "\", \"" + station.get_url() + "\")"

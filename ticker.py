@@ -19,7 +19,7 @@ class Ticker(object):
     def setMaximumStrLen(self, max_str_len):
         self._maximum_string_length = max_str_len
 
-    def setText(self, str):
+    def setText(self, str = ""):
         if not str == self._string:
             self._string = str
             self._string_position = 0

@@ -136,6 +136,7 @@ def main():
     mpd_client.timeout = 240
     mpd_client.idletimeout = 240
     mpd_client.connect(MPD_default_socket_path,None)
+    mpd_client.clear()
     logger.info("Connected to MPD daemon.")
 
     # Connect to SQLite DB

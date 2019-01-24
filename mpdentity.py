@@ -1,10 +1,11 @@
 from __future__ import print_function
+import os.path
 from .ticker import Ticker
 
 class MPDEntity(object):
-    def __init__(self, mpd_data, path):
+    def __init__(self, mpd_data):
         self._name = ""
-        self._path = path
+        self._full_path = ""
         self._ticker = Ticker(8)
         self._file = False
         self._directory = False
@@ -12,17 +13,25 @@ class MPDEntity(object):
 
         if 'directory' in mpd_data:
             self._directory = True
-            self._name = mpd_data["directory"]
+            self._full_path = mpd_data["directory"]
         if 'file' in mpd_data:
             self._file = True
-            self._name = mpd_data["file"]
-        self._ticker.setText(self._name.replace(self._path + "/", ""))
+            self._full_path = mpd_data["file"]
+
+        self._name = os.path.basename(self._full_path)
+        self._ticker.setText(self._name)
+
+    def __str__(self):
+        if self.is_directory():
+            return "DIR: " + self.get_name()
+        else:
+            return "FILE: " + self.get_name()
 
     def get_name(self):
         return self._name
 
     def get_full_path(self):
-        return self._name
+        return self._full_path
 
     def is_directory(self):
         return self._directory

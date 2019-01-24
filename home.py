@@ -77,14 +77,14 @@ class Home(object):
         # Get button presses
         if self.is_active():
             self._mpd_client.ping()
-            buttons = self._curses.get_command();
+            fp_command = self._curses.get_command();
 
             # Check for a change of command
             if self._curses.has_command_changed():
                 # Action button events
-                if buttons == commands.CMD_POWER:
+                if fp_command == commands.CMD_POWER:
                     self._poweroff = True
-                elif buttons == commands.CMD_UP:
+                elif fp_command == commands.CMD_UP:
                     last_control = None
                     for control in self._controls:
                         if control.is_selected():
@@ -93,7 +93,7 @@ class Home(object):
                                 control.set_selected(False)
                                 break
                         last_control = control
-                elif buttons == commands.CMD_DOWN:
+                elif fp_command == commands.CMD_DOWN:
                     last_control = None
                     for control in self._controls:
                         if not last_control is None:
@@ -102,7 +102,7 @@ class Home(object):
                             break
                         if control.is_selected():
                             last_control = control
-                elif (buttons & commands.CMD_SELECT) > 0:
+                elif (fp_command == commands.CMD_SELECT):
                     for control in self._controls:
                         if control.is_selected():
                             self.set_active(False)
