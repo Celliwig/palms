@@ -2,6 +2,7 @@ from __future__ import print_function
 import logging
 import re
 from .curses_wrapper import curses_wrapper
+from .dev_panel import *
 from .screen_utils import *
 from .station import Station
 from .ticker import Ticker
@@ -64,6 +65,20 @@ class Radio(object):
         return self._active
 
     def set_active(self, act):
+        # Configure glyphs
+        # GLYPH_CODE_1 has the media type icon
+        self._curses.set_glyph(1, dev_panel.GLYPH_MODE_RADIO)
+        # GLYPH_CODE_2 has the playback state
+        self._curses.set_glyph(2, dev_panel.GLYPH_TRANSPORT_PLAY)
+        # GLYPH_CODE_3 has repeat '1'
+        self._curses.set_glyph(3, dev_panel.GLYPH_REPEAT_1)
+        # GLYPH_CODE_4 has repeat
+        self._curses.set_glyph(4, dev_panel.GLYPH_REPEAT)
+        # GLYPH_CODE_5 has shuffle
+        self._curses.set_glyph(5, dev_panel.GLYPH_SHUFFLE)
+        # GLYPH_CODE_6 has speaker
+        self._curses.set_glyph(6, dev_panel.GLYPH_SPEAKER)
+
         self._active = act
         if act:
             self._job.resume()
@@ -379,13 +394,18 @@ class Radio(object):
         self._station_ticker.setText(song_station)
         self._song_ticker.setText(song_name)
         self._curses.get_screen().clear()
+
+        # Set playback state icon
+        # GLYPH_CODE_2 has the playback state
         if playback_state == "play":
-            state_str = "Playing   "
+            self._curses.set_glyph(2, dev_panel.GLYPH_TRANSPORT_PLAY)
         elif playback_state == "pause":
-            state_str = "Paused    "
+            self._curses.set_glyph(2, dev_panel.GLYPH_TRANSPORT_PAUSE)
         else:
-            state_str = "          "
-        state_str += "  Vol: " + str(current_volume).rjust(3)
+            self._curses.set_glyph(2, dev_panel.GLYPH_TRANSPORT_STOP)
+        # GLYPH_CODE_1 has the media type icon
+        # GLYPH_CODE_6 has speaker
+        state_str = " " + self._curses.GLYPH_CODE_1 + " " + self._curses.GLYPH_CODE_2 + "            " + self._curses.GLYPH_CODE_6 + str(current_volume).rjust(3)
         self._curses.get_screen().addstr(0,0,state_str)
         if self._alt_display:
             line1 = stream_bitrate.rjust(4) + " kbps " + audiostream_info

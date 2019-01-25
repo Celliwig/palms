@@ -18,6 +18,16 @@ class curses_wrapper(object):
     KEY_REPEAT_DELAY = 4			# Repeat at about 2.5 Hz
     KEY_REPEAT_DELAY_START = 10			# Delay for about 1 second
 
+    # Glyph byte codes (configured based on device type)
+    GLYPH_CODE_0 = " "
+    GLYPH_CODE_1 = " "
+    GLYPH_CODE_2 = " "
+    GLYPH_CODE_3 = " "
+    GLYPH_CODE_4 = " "
+    GLYPH_CODE_5 = " "
+    GLYPH_CODE_6 = " "
+    GLYPH_CODE_7 = " "
+
     def __init__(self, screen_type):
         self._command_current = None
         self._command_previous = None
@@ -40,9 +50,29 @@ class curses_wrapper(object):
             self._screen.keypad(True)
             self._screen.nodelay(True)
 
+            # Glyph byte codes
+            self.GLYPH_CODE_0 = "0"
+            self.GLYPH_CODE_1 = "1"
+            self.GLYPH_CODE_2 = "2"
+            self.GLYPH_CODE_3 = "3"
+            self.GLYPH_CODE_4 = "4"
+            self.GLYPH_CODE_5 = "5"
+            self.GLYPH_CODE_6 = "6"
+            self.GLYPH_CODE_7 = "7"
+
         if self._screen_type == self.SCREEN_TYPE_FPDEVICE:
             self._logger.debug('Connecting to /dev backed FP screen.')
             self._screen = dev_panel()
+
+            # Glyph byte codes
+            self.GLYPH_CODE_0 = chr(0)
+            self.GLYPH_CODE_1 = chr(1)
+            self.GLYPH_CODE_2 = chr(2)
+            self.GLYPH_CODE_3 = chr(3)
+            self.GLYPH_CODE_4 = chr(4)
+            self.GLYPH_CODE_5 = chr(5)
+            self.GLYPH_CODE_6 = chr(6)
+            self.GLYPH_CODE_7 = chr(7)
 
     # Destroy screen
     def close(self):
@@ -58,6 +88,10 @@ class curses_wrapper(object):
 
         if self._screen_type == self.SCREEN_TYPE_FPDEVICE:
             self._screen.close()
+
+    def set_glyph(self, glyph_index, glyph_data):
+        if self._screen_type == self.SCREEN_TYPE_FPDEVICE:
+            self._screen.set_glyph(glyph_index, glyph_data)
 
     def get_screen(self):
         return self._screen
