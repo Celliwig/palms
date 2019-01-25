@@ -1,4 +1,3 @@
-# P.A.L.M.S.
                          _..                                                 
                         sw$J%,        __.                                    
                          <WQQL   ._y29s.                                     
@@ -7,8 +6,6 @@
          ayQ@WQWW@$WVQQQQw)$Q@QWQD(yWB}+%"'                                  
        aPWP5ZXDmhJTrAT$QQQQyQQWQP\mH$QZT??'                                  
      =TsjwmQQWQQQQQQQWWg%WWQWWP{wWH$wawmmQQQm#aa,                            
-.saaSWWWWV$D$WYmQQQQQWQQQa?Wd1vmm$P#$WQWQQdQQQQQQw,_    </,                  
-   "=,)\%?w75%QD5WWWWQWQWWUQWp|gggmwawaT4PkQQWE$WgmLl/  jmmc                 
          ^ - "_?^)"")5mgWWQWWWQQW@WWWQQWQQwJ(\5]W$WWBQa )XQD_                
                    .swWWWQQQ#QQQQQDj44mWQQWQQmJ/(7QQWmWL-UQQk    ._a<~       
                  _v$WWWQDQQDJ4QQQWQ;])]jWWWQQQQQmQQWQmBQcqQW> _iwmWe~        
@@ -39,11 +36,8 @@
                          WQQWQdP_y[-m jQQW_-.s,                              
                         a)WQQQQaW6J6dmQQQWc3(                                
                      _saa#QWQQQWQQQQmmQQQmp:`                                
-------------------------------------------------------------------------------
 
-                     Pi Adagio LCD Music Streamer
-
-------------------------------------------------------------------------------
+# P.A.L.M.S. (Pi Adagio LCD Music Streamer)
 
 This is a (relatively) simple music streamer app designed to provide internet
 radio, MPD browser functionality, and USB playback on a standalone piece of 
