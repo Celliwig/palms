@@ -39,20 +39,20 @@
 
 # P.A.L.M.S. (Pi Adagio LCD Music Streamer)
 
-This is a (relatively) simple music streamer app designed to provide internet
-radio, MPD browser functionality, and USB playback on a standalone piece of 
-equipment such as a hifi seperate system.
+# Overview
+This is a simple music streamer app designed to provide internet radio and MPD browser functionality on a standalone piece of equipment such as a hifi seperate system. This program was developed to run on a Raspberry Pi connected to the front panel of an Adagio Sound Server, however it should be easy to adapt for any system providing a 4x20 character display. While there is a command line interface implemented in ncurses, it is not recommended to run it like this. That interface is provided to make development/debugging easier, not to run the streamer full time as certain features were not designed with ncurses in mind. There are better command line tools out there, see the end.
 
-This program was developed to run on a Raspberry Pi connected to the front
-panel of an Adagio Sound Server. However it can easily be adapted to any 
-system providing a 4x20 character display, with button controls. The expected
-controls are:
+# Features
+ - Supported playback formats, see MPD.
+ - SQLite backed config (includes radio station list, 8 x radio presets, etc).
+ - Provides navigation of MPD music directory and basic playlist construction.
+ - When run as root, drops privileges to a specified user
 
-	* Menu
-	* Up, Down, Left, Right, Select, and Back
-	* Play, Pause, Stop, Previous, and Next
-	* Display select 1 thru 4
+# User interface
+All interaction with the outside world is through a ncurses like class, dev_panel.py. This communicates with a character device provided by kernel module piadagio_fp (see Celliwig/piadagio_fp). If you wish to interface with an alternate display/button board these are the two items to inspect. This was done so that the streamer app could be kept as simple as possible and leave the hard work of i2c communication to the kernel.
 
-The device is controlled through a character device provided by the 
-piadagio_fp module, this handles all the i2c interfacing leaving the app to
-deal with the job of providing an interface to the MPD player.
+# See also
+ - https://bobrathbone.com/raspberrypi/pi_internet_radio.html 
+ Rich feature set, did consider using this instead of writing my own, but there were some design descisions which I didn't like so didn't end up trying it. However might be what you're looking for.
+ - https://www.musicpd.org/clients/ncmpc/
+ Excellent CLI ncurses MPD client, which proved quite handy when trying to debug my own!
